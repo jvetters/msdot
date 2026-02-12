@@ -9,24 +9,17 @@
 <link href="https://api.mapbox.com/mapbox-gl-js/v3.18.0/mapbox-gl.css" rel="stylesheet">
 <script src="https://api.mapbox.com/mapbox-gl-js/v3.18.0/mapbox-gl.js"></script>
 
-<link href="https://unpkg.com/mapillary-js@4.1.0/dist/mapillary.css" rel="stylesheet">
-<script src="https://unpkg.com/mapillary-js@4.1.0/dist/mapillary.js"></script>
+<link href="https://unpkg.com/mapillary-js@3.1.0/dist/mapillary.min.css" rel="stylesheet">
+<script src="https://unpkg.com/mapillary-js@3.1.0/dist/mapillary.min.js"></script>
 
 <style>
   body { margin: 0; padding: 0; }
   #map { position: absolute; top: 0; bottom: 0; width: 100%; }
-  /* The Image Viewer Window */
   #mly { 
-    position: absolute; 
-    bottom: 20px; 
-    right: 20px; 
-    width: 400px; 
-    height: 300px; 
-    z-index: 10; 
-    border: 3px solid white; 
-    border-radius: 8px;
-    box-shadow: 0 0 20px rgba(0,0,0,0.4); 
-    background: #000; 
+    position: absolute; bottom: 20px; right: 20px; 
+    width: 400px; height: 300px; 
+    z-index: 10; border: 3px solid white; border-radius: 8px;
+    box-shadow: 0 0 20px rgba(0,0,0,0.4); background: #000; 
   }
 </style>
 </head>
@@ -36,10 +29,8 @@
 <div id="map"></div>
 
 <script>
-  // Your Mapbox Access Token
   mapboxgl.accessToken = 'pk.eyJ1IjoianZldHRlcnMiLCJhIjoiY21sazFhdDg5MDV3dDNlcTI3aXlwejIwaSJ9.ecEavihruz0TZguVQvRiVg';
 
-  // 1. Initialize the Mapbox Map
   const map = new mapboxgl.Map({
     container: 'map',
     style: 'mapbox://styles/mapbox/standard',
@@ -47,69 +38,45 @@
     center: [-87.622088, 41.878781] 
   });
 
-  // 2. Initialize the Mapillary Viewer with your authorized token
+  // Initialize Viewer using v3 syntax
   const mly = new mapillary.Viewer({
     accessToken: 'MLY|25724468457195152|d9c0ac6f4fbcd6ede3a3ba4e8332729b',
     container: 'mly',
   });
 
-  // 3. Create a Red Marker to show camera location
   const marker = new mapboxgl.Marker({ color: '#FF0000' });
 
   map.on('load', () => {
-    // Add Mapillary Vector Source
     map.addSource('mapillary', {
       type: 'vector',
       tiles: ['https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=MLY|25724468457195152|d9c0ac6f4fbcd6ede3a3ba4e8332729b'],
-      minzoom: 6,
-      maxzoom: 14
+      minzoom: 6, maxzoom: 14
     });
 
-    // Layer 1: The Green Lines (Sequences)
-    map.addLayer({
-      id: 'mapillary-lines',
-      type: 'line',
-      source: 'mapillary',
-      'source-layer': 'sequence',
-      layout: { 'line-cap': 'round', 'line-join': 'round' },
-      paint: { 'line-opacity': 0.5, 'line-color': '#35af6d', 'line-width': 2 }
-    });
-
-    // Layer 2: The "Bubbles" (Image Points)
     map.addLayer({
       id: 'mapillary-points',
       type: 'circle',
       source: 'mapillary',
       'source-layer': 'image',
-      paint: {
-        'circle-radius': 5,
-        'circle-color': '#35af6d',
-        'circle-stroke-width': 1,
-        'circle-stroke-color': '#fff'
-      }
+      paint: { 'circle-radius': 6, 'circle-color': '#35af6d', 'circle-stroke-width': 1, 'circle-stroke-color': '#fff' }
     });
 
-    // Cursor feedback
+    map.on('click', 'mapillary-points', (e) => {
+      // Get the specific image ID from the clicked bubble
+      const imageId = e.features[0].properties.id;
+      
+      // Tell the viewer to load this exact ID
+      mly.moveToKey(imageId)
+        .catch(err => console.error("Error loading image ID:", imageId, err));
+    });
+
+    mly.on('nodechanged', (node) => {
+      marker.setLngLat([node.latLon.lon, node.latLon.lat]).addTo(map);
+    });
+
+    // Cursor change on hover
     map.on('mouseenter', 'mapillary-points', () => { map.getCanvas().style.cursor = 'pointer'; });
     map.on('mouseleave', 'mapillary-points', () => { map.getCanvas().style.cursor = ''; });
-
-    // Handle Map Clicks
-    map.on('click', (e) => {
-      // Find the nearest image within 100 meters
-      mly.moveTo({ lngLat: e.lngLat, radius: 100 })
-        .catch(err => console.warn("No image found at this location.", err));
-    });
-
-    // Sync the Map Marker when the image changes
-    mly.on('image', (event) => {
-      const lngLat = event.image.lngLat;
-      marker.setLngLat([lngLat.lng, lngLat.lat]).addTo(map);
-    });
-
-    // Error handling for debugging
-    mly.on('error', (e) => {
-      console.error("Mapillary Viewer Error:", e.error);
-    });
   });
 
   map.addControl(new mapboxgl.NavigationControl());
