@@ -2,36 +2,43 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Mapillary - Project Tracker</title>
+<title>Mapillary - Strict Project Tracker</title>
 <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
 <meta name="referrer" content="no-referrer-when-downgrade">
+
 <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
 <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+
 <style>
   body { margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; font-family: sans-serif; }
   #map { flex: 1; width: 100%; }
   #mly-container { height: 40%; width: 100%; border-top: 5px solid #35af6d; background: #000; }
   iframe { width: 100%; height: 100%; border: none; }
+  
   .filter-ctrl {
     position: absolute; top: 10px; left: 10px; z-index: 10;
     background: white; padding: 12px; border-radius: 8px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.3); display: flex; gap: 8px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3); display: flex; flex-direction: column; gap: 8px;
   }
+  .input-row { display: flex; gap: 8px; }
   input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: 150px; }
   button { padding: 8px 15px; background: #35af6d; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
-  button:hover { background: #2d945b; }
+  .status { font-size: 11px; color: #666; font-style: italic; }
 </style>
 </head>
 <body>
 
 <div class="filter-ctrl">
-  <input type="text" id="user-input" placeholder="jvetters" value="jvetters">
-  <button onclick="updateFilter()">Filter</button>
+  <div class="input-row">
+    <input type="text" id="user-input" placeholder="jvetters" value="jvetters">
+    <button onclick="updateFilter()">Lock to My Captures</button>
+  </div>
+  <div class="status" id="filter-status">Defaulting to user: jvetters</div>
 </div>
 
 <div id="map"></div>
 <div id="mly-container">
-  <iframe id="mly-frame" src="https://www.mapillary.com/embed?style=photo"></iframe>
+  <iframe id="mly-frame" src="https://www.mapillary.com/embed?style=photo&menu=false"></iframe>
 </div>
 
 <script>
@@ -42,13 +49,15 @@
     container: 'map',
     style: 'mapbox://styles/mapbox/streets-v12',
     zoom: 13,
-    center: [-89.988, 34.312] // Centered on your Batesville project area
+    center: [-89.9449, 34.3085] // Centered on your latest capture area in MS
   });
 
   function updateFilter() {
     const user = document.getElementById('user-input').value.trim();
-    // Rebuild the tile URL with a strict username filter
-    const newTiles = `https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${mlyToken}${user ? '&creator_username=' + user : ''}`;
+    const statusText = document.getElementById('filter-status');
+    
+    // 1. Strict Map Filter: Only fetch tiles for the specific user
+    const tileUrl = `https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${mlyToken}${user ? '&creator_username=' + user : ''}`;
     
     if (map.getSource('mapillary')) {
       map.removeLayer('mapillary-points');
@@ -56,9 +65,9 @@
       map.removeSource('mapillary');
     }
     
-    map.addSource('mapillary', { type: 'vector', tiles: [newTiles] });
+    map.addSource('mapillary', { type: 'vector', tiles: [tileUrl] });
 
-    // 1. Line layer for project overview
+    // Lines for project overview
     map.addLayer({
       id: 'mapillary-lines',
       type: 'line',
@@ -67,7 +76,7 @@
       paint: { 'line-opacity': 0.8, 'line-color': '#35af6d', 'line-width': 4 }
     });
 
-    // 2. Point layer for precise clicking
+    // Bubbles for precise selection
     map.addLayer({
       id: 'mapillary-points',
       type: 'circle',
@@ -76,27 +85,12 @@
       minzoom: 12, 
       paint: { 'circle-radius': 8, 'circle-color': '#35af6d', 'circle-stroke-width': 2, 'circle-stroke-color': '#fff' }
     });
+
+    statusText.innerText = `Project Locked: ${user}`;
   }
 
   map.on('load', () => {
     updateFilter(); 
     
     map.on('click', (e) => {
-      // Specifically query only the filtered layers
-      const features = map.queryRenderedFeatures(e.point, { layers: ['mapillary-points', 'mapillary-lines'] });
-      
-      if (features.length > 0) {
-        const imageId = features[0].properties.id;
-        const newUrl = `https://www.mapillary.com/embed?image_key=${imageId}&style=photo`;
-        document.getElementById('mly-frame').src = newUrl;
-      }
-    });
-
-    map.on('mouseenter', 'mapillary-points', () => { map.getCanvas().style.cursor = 'pointer'; });
-    map.on('mouseleave', 'mapillary-points', () => { map.getCanvas().style.cursor = ''; });
-  });
-
-  map.addControl(new mapboxgl.NavigationControl());
-</script>
-</body>
-</html>
+      const features = map.queryRenderedFeatures(e.point, { layers:
