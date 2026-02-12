@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Mapillary Global View</title>
+<title>Mapillary - Filtered for jvetters</title>
 <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
 <meta name="referrer" content="no-referrer-when-downgrade">
 <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
@@ -27,20 +27,22 @@
   const map = new mapboxgl.Map({
     container: 'map',
     style: 'mapbox://styles/mapbox/streets-v11',
-    zoom: 12, // Starting slightly further out
+    zoom: 12,
     center: [-89.988, 34.312] 
   });
 
   map.on('load', () => {
+    // We append &creator_username=jvetters to the tiles URL to pre-filter the data
+    const filteredTiles = `https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${mlyToken}&creator_username=jvetters`;
+
     map.addSource('mapillary', {
       type: 'vector',
-      tiles: ['https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=' + mlyToken],
+      tiles: [filteredTiles],
       minzoom: 0,
       maxzoom: 14
     });
 
-    // 1. Line Layer: Visible from Zoom 0 to 14
-    // This helps you see general coverage at a glance.
+    // Line Layer for your user sequences
     map.addLayer({
       id: 'mapillary-lines',
       type: 'line',
@@ -48,14 +50,13 @@
       'source-layer': 'sequence',
       layout: { 'line-cap': 'round', 'line-join': 'round' },
       paint: { 
-        'line-opacity': 0.6, 
+        'line-opacity': 0.8, 
         'line-color': '#35af6d', 
-        'line-width': 2 
+        'line-width': 3 
       }
     });
 
-    // 2. Bubble Layer: Visible from Zoom 13 and deeper
-    // These only appear when you are close enough to click accurately.
+    // Bubble Layer for your user image points
     map.addLayer({
       id: 'mapillary-points',
       type: 'circle',
@@ -70,7 +71,6 @@
       }
     });
 
-    // Click logic: Works on both lines and bubbles for convenience
     map.on('click', (e) => {
       const features = map.queryRenderedFeatures(e.point, { layers: ['mapillary-points', 'mapillary-lines'] });
       if (features.length > 0) {
