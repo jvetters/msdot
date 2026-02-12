@@ -2,19 +2,16 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Mapillary - Stable Project Tracker</title>
+<title>Mapillary - Project Tracker</title>
 <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
 <meta name="referrer" content="no-referrer-when-downgrade">
-
 <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
 <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
-
 <style>
   body { margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; font-family: sans-serif; }
   #map { flex: 1; width: 100%; }
   #mly-container { height: 40%; width: 100%; border-top: 5px solid #35af6d; background: #000; }
   iframe { width: 100%; height: 100%; border: none; }
-  
   .filter-ctrl {
     position: absolute; top: 10px; left: 10px; z-index: 10;
     background: white; padding: 12px; border-radius: 8px;
@@ -31,9 +28,9 @@
 <div class="filter-ctrl">
   <div class="input-row">
     <input type="text" id="user-input" placeholder="jvetters" value="jvetters">
-    <button onclick="applyUserFilter()">Lock to My Captures</button>
+    <button onclick="applyUserFilter()">Filter Map</button>
   </div>
-  <div id="filter-status" class="status">Initial load...</div>
+  <div id="filter-status" class="status">Loading...</div>
 </div>
 
 <div id="map"></div>
@@ -52,56 +49,7 @@
     center: [-89.9449, 34.3085] 
   });
 
-  // Load the Mapillary data once
   map.on('load', () => {
     map.addSource('mapillary', {
       type: 'vector',
-      tiles: [`https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${mlyToken}`]
-    });
-
-    map.addLayer({
-      id: 'mapillary-lines',
-      type: 'line',
-      source: 'mapillary',
-      'source-layer': 'sequence',
-      paint: { 'line-color': '#35af6d', 'line-width': 2 }
-    });
-
-    map.addLayer({
-      id: 'mapillary-points',
-      type: 'circle',
-      source: 'mapillary',
-      'source-layer': 'image',
-      minzoom: 10,
-      paint: { 'circle-radius': 6, 'circle-color': '#35af6d', 'circle-stroke-width': 1, 'circle-stroke-color': '#fff' }
-    });
-
-    applyUserFilter(); // Run the initial filter for jvetters
-  });
-
-  function applyUserFilter() {
-    const user = document.getElementById('user-input').value.trim();
-    const status = document.getElementById('filter-status');
-    
-    // Use Mapbox 'setFilter' instead of removing/adding sources to prevent blanking
-    const userFilter = ['==', ['get', 'creator_username'], user];
-    
-    if (map.getLayer('mapillary-lines')) map.setFilter('mapillary-lines', userFilter);
-    if (map.getLayer('mapillary-points')) map.setFilter('mapillary-points', userFilter);
-    
-    status.innerText = `Showing captures for: ${user}`;
-  }
-
-  map.on('click', (e) => {
-    const features = map.queryRenderedFeatures(e.point, { layers: ['mapillary-points', 'mapillary-lines'] });
-    if (features.length > 0) {
-      const imageId = features[0].properties.id;
-      const user = document.getElementById('user-input').value.trim();
-      // Pass the username to the viewer so it stays on your captures
-      const newUrl = `https://www.mapillary.com/embed?image_key=${imageId}&style=photo&menu=false&username=${user}`;
-      document.getElementById('mly-frame').src = newUrl;
-    }
-  });
-</script>
-</body>
-</html>
+      tiles: [`
