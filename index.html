@@ -27,12 +27,11 @@
   const map = new mapboxgl.Map({
     container: 'map',
     style: 'mapbox://styles/mapbox/streets-v11',
-    zoom: 13,
-    center: [-89.988, 34.312] // Centered on Batesville, MS for your MDOT project
+    zoom: 12, // Starting slightly further out
+    center: [-89.988, 34.312] 
   });
 
   map.on('load', () => {
-    // Force Mapbox to request tiles globally without bounds
     map.addSource('mapillary', {
       type: 'vector',
       tiles: ['https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=' + mlyToken],
@@ -40,12 +39,29 @@
       maxzoom: 14
     });
 
+    // 1. Line Layer: Visible from Zoom 0 to 14
+    // This helps you see general coverage at a glance.
+    map.addLayer({
+      id: 'mapillary-lines',
+      type: 'line',
+      source: 'mapillary',
+      'source-layer': 'sequence',
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: { 
+        'line-opacity': 0.6, 
+        'line-color': '#35af6d', 
+        'line-width': 2 
+      }
+    });
+
+    // 2. Bubble Layer: Visible from Zoom 13 and deeper
+    // These only appear when you are close enough to click accurately.
     map.addLayer({
       id: 'mapillary-points',
       type: 'circle',
       source: 'mapillary',
       'source-layer': 'image',
-      minzoom: 6, // Dots appear from Zoom 6 and deeper
+      minzoom: 13, 
       paint: { 
         'circle-radius': 8, 
         'circle-color': '#35af6d', 
@@ -54,14 +70,18 @@
       }
     });
 
-    map.on('click', 'mapillary-points', (e) => {
-      const imageId = e.features[0].properties.id;
-      const newUrl = `https://www.mapillary.com/embed?image_key=${imageId}&style=photo`;
-      document.getElementById('mly-frame').src = newUrl;
+    // Click logic: Works on both lines and bubbles for convenience
+    map.on('click', (e) => {
+      const features = map.queryRenderedFeatures(e.point, { layers: ['mapillary-points', 'mapillary-lines'] });
+      if (features.length > 0) {
+        const imageId = features[0].properties.id;
+        const newUrl = `https://www.mapillary.com/embed?image_key=${imageId}&style=photo`;
+        document.getElementById('mly-frame').src = newUrl;
+      }
     });
 
-    map.on('mouseenter', 'mapillary-points', () => { map.getCanvas().style.cursor = 'pointer'; });
-    map.on('mouseleave', 'mapillary-points', () => { map.getCanvas().style.cursor = ''; });
+    map.on('mouseenter', 'mapillary-lines', () => { map.getCanvas().style.cursor = 'pointer'; });
+    map.on('mouseleave', 'mapillary-lines', () => { map.getCanvas().style.cursor = ''; });
   });
 
   map.addControl(new mapboxgl.NavigationControl());
