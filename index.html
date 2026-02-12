@@ -2,38 +2,43 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Mapillary - Final Stable View</title>
+<title>Mapillary Project Tracker - Date & User Filter</title>
 <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
-<meta name="referrer" content="no-referrer-when-downgrade">
-
 <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
 <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
-
 <style>
   body { margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; font-family: sans-serif; }
-  #map { flex: 1; width: 100%; background: #eee; } /* Light grey background while map loads */
-  #mly-container { height: 40%; width: 100%; border-top: 5px solid #35af6d; background: #000; position: relative; }
+  #map { flex: 1; width: 100%; background: #222; }
+  #mly-container { height: 40%; width: 100%; border-top: 5px solid #35af6d; background: #000; }
   iframe { width: 100%; height: 100%; border: none; }
   
-  .filter-ctrl {
+  .controls {
     position: absolute; top: 10px; left: 10px; z-index: 10;
-    background: white; padding: 12px; border-radius: 8px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.3); display: flex; flex-direction: column; gap: 8px;
+    background: white; padding: 15px; border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3); width: 220px;
   }
-  .input-row { display: flex; gap: 8px; }
-  input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: 150px; }
-  button { padding: 8px 15px; background: #35af6d; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
-  .status { font-size: 11px; color: #666; font-style: italic; }
+  .row { margin-bottom: 10px; display: flex; flex-direction: column; gap: 5px; }
+  label { font-size: 12px; font-weight: bold; color: #444; }
+  input, select { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+  button { padding: 10px; background: #35af6d; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
 </style>
 </head>
 <body>
 
-<div class="filter-ctrl">
-  <div class="input-row">
+<div class="controls">
+  <div class="row">
+    <label>Username</label>
     <input type="text" id="user-input" placeholder="jvetters" value="jvetters">
-    <button onclick="applyFilter()">Filter Map</button>
   </div>
-  <div id="filter-status" class="status">Initializing project data...</div>
+  <div class="row">
+    <label>Timeframe</label>
+    <select id="date-input">
+      <option value="0">All Time</option>
+      <option value="1577836800000">Since 2020</option>
+      <option value="1735689600000">Recent (Since Jan 2025)</option>
+    </select>
+  </div>
+  <button onclick="applyFilters()">Update Map</button>
 </div>
 
 <div id="map"></div>
@@ -48,27 +53,24 @@
   const map = new mapboxgl.Map({
     container: 'map',
     style: 'mapbox://styles/mapbox/streets-v11',
-    zoom: 12,
-    center: [-89.9449, 34.3085] // Batesville, MS
+    zoom: 11,
+    center: [-89.9449, 34.3085] 
   });
 
   map.on('load', () => {
-    // 1. Load the Mapillary Global Source ONCE
     map.addSource('mapillary', {
       type: 'vector',
       tiles: [`https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${mlyToken}`]
     });
 
-    // 2. Continuous Lines Layer
     map.addLayer({
       id: 'mapillary-lines',
       type: 'line',
       source: 'mapillary',
       'source-layer': 'sequence',
-      paint: { 'line-color': '#35af6d', 'line-width': 2.5, 'line-opacity': 0.7 }
+      paint: { 'line-color': '#35af6d', 'line-width': 2, 'line-opacity': 0.8 }
     });
 
-    // 3. Precision Bubbles Layer
     map.addLayer({
       id: 'mapillary-points',
       type: 'circle',
@@ -77,26 +79,28 @@
       minzoom: 10,
       paint: { 'circle-radius': 6, 'circle-color': '#35af6d', 'circle-stroke-width': 1, 'circle-stroke-color': '#fff' }
     });
-
-    applyFilter(); // Initial lock to jvetters
   });
 
-  function applyFilter() {
+  function applyFilters() {
     const user = document.getElementById('user-input').value.trim();
-    const status = document.getElementById('filter-status');
+    const minDate = parseInt(document.getElementById('date-input').value);
     
-    if (user === "") {
-      // Remove filters to show all public data
-      map.setFilter('mapillary-lines', null);
-      map.setFilter('mapillary-points', null);
-      status.innerText = "Showing all public imagery";
-    } else {
-      // Strict data filter for your captures
-      const userFilter = ['==', ['get', 'creator_username'], user];
-      map.setFilter('mapillary-lines', userFilter);
-      map.setFilter('mapillary-points', userFilter);
-      status.innerText = `Locked to captures by: ${user}`;
+    // Constructing a "Compound Filter"
+    let filterArr = ['all'];
+    
+    if (user !== "") {
+      filterArr.push(['==', ['get', 'creator_username'], user]);
     }
+    
+    if (minDate > 0) {
+      filterArr.push(['>=', ['get', 'captured_at'], minDate]);
+    }
+
+    // Apply only if user has actually added a filter
+    const finalFilter = filterArr.length > 1 ? filterArr : null;
+    
+    if (map.getLayer('mapillary-lines')) map.setFilter('mapillary-lines', finalFilter);
+    if (map.getLayer('mapillary-points')) map.setFilter('mapillary-points', finalFilter);
   }
 
   map.on('click', (e) => {
@@ -104,12 +108,10 @@
     if (features.length > 0) {
       const imageId = features[0].properties.id;
       const user = document.getElementById('user-input').value.trim();
-      // Synchronize the viewer with the filtered user
       const newUrl = `https://www.mapillary.com/embed?image_key=${imageId}&style=photo&menu=false${user ? '&username=' + user : ''}`;
       document.getElementById('mly-frame').src = newUrl;
     }
   });
-
-  map.on('mouseenter', 'mapillary-points', () => { map.getCanvas().style.cursor = 'pointer'; });
-  map.on('mouseleave', 'mapillary-points', () => { map.getCanvas().style.cursor = ''; });
-</
+</script>
+</body>
+</html>
