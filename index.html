@@ -2,13 +2,11 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Mapillary + Mapbox - Global View</title>
+<title>Mapillary Global View</title>
 <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
 <meta name="referrer" content="no-referrer-when-downgrade">
-
 <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
 <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
-
 <style>
   body { margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; }
   #map { flex: 1; width: 100%; }
@@ -17,7 +15,6 @@
 </style>
 </head>
 <body>
-
 <div id="map"></div>
 <div id="mly-container">
   <iframe id="mly-frame" src="https://www.mapillary.com/embed?style=photo"></iframe>
@@ -30,18 +27,17 @@
   const map = new mapboxgl.Map({
     container: 'map',
     style: 'mapbox://styles/mapbox/streets-v11',
-    zoom: 10,
-    center: [-87.622088, 41.878781]
+    zoom: 13,
+    center: [-89.988, 34.312] // Centered on Batesville, MS for your MDOT project
   });
 
   map.on('load', () => {
-    // Optimized Source for Panning
+    // Force Mapbox to request tiles globally without bounds
     map.addSource('mapillary', {
       type: 'vector',
       tiles: ['https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=' + mlyToken],
       minzoom: 0,
-      maxzoom: 14,
-      volatile: true // Tells Mapbox to keep re-fetching tiles as you move
+      maxzoom: 14
     });
 
     map.addLayer({
@@ -49,8 +45,7 @@
       type: 'circle',
       source: 'mapillary',
       'source-layer': 'image',
-      // We set a wide minzoom here so dots stay visible longer
-      minzoom: 5, 
+      minzoom: 6, // Dots appear from Zoom 6 and deeper
       paint: { 
         'circle-radius': 8, 
         'circle-color': '#35af6d', 
