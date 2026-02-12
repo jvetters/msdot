@@ -25,7 +25,7 @@
 </div>
 
 <script>
-  // Your Access Tokens
+  // Access Tokens
   mapboxgl.accessToken = 'pk.eyJ1IjoianZldHRlcnMiLCJhIjoiY21sazFhdDg5MDV3dDNlcTI3aXlwejIwaSJ9.ecEavihruz0TZguVQvRiVg';
   const mlyToken = 'MLY|25724468457195152|d9c0ac6f4fbcd6ede3a3ba4e8332729b';
 
@@ -38,4 +38,43 @@
   });
 
   map.on('load', () => {
-    // 2. Add Source
+    // 2. Optimized Global Source
+    map.addSource('mapillary', {
+      type: 'vector',
+      tiles: ['https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=' + mlyToken],
+      // We removed minzoom and maxzoom here to allow the map to fetch tiles everywhere
+      buffer: 0,
+      tolerance: 0
+    });
+
+    // 3. Add Layer: Bubbles (Image Points)
+    map.addLayer({
+      id: 'mapillary-points',
+      type: 'circle',
+      source: 'mapillary',
+      'source-layer': 'image',
+      minzoom: 6, // Ensures dots appear even at lower zoom levels
+      paint: { 
+        'circle-radius': 8, 
+        'circle-color': '#35af6d', 
+        'circle-stroke-width': 2, 
+        'circle-stroke-color': '#fff' 
+      }
+    });
+
+    // 4. Click Event: Updates the iframe URL with the clicked Image ID
+    map.on('click', 'mapillary-points', (e) => {
+      const imageId = e.features[0].properties.id;
+      const newUrl = `https://www.mapillary.com/embed?image_key=${imageId}&style=photo`;
+      document.getElementById('mly-frame').src = newUrl;
+    });
+
+    // Cursor Feedback
+    map.on('mouseenter', 'mapillary-points', () => { map.getCanvas().style.cursor = 'pointer'; });
+    map.on('mouseleave', 'mapillary-points', () => { map.getCanvas().style.cursor = ''; });
+  });
+
+  map.addControl(new mapboxgl.NavigationControl());
+</script>
+</body>
+</html>
