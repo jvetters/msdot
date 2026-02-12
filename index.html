@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Mapillary + Mapbox Failsafe Viewer</title>
+<title>Mapillary + Mapbox - Global View</title>
 <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
 <meta name="referrer" content="no-referrer-when-downgrade">
 
@@ -12,7 +12,6 @@
 <style>
   body { margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; }
   #map { flex: 1; width: 100%; }
-  /* Split screen: Map on top (60%), Viewer on bottom (40%) */
   #mly-container { height: 40%; width: 100%; border-top: 5px solid #35af6d; background: #000; }
   iframe { width: 100%; height: 100%; border: none; }
 </style>
@@ -25,35 +24,33 @@
 </div>
 
 <script>
-  // Access Tokens
   mapboxgl.accessToken = 'pk.eyJ1IjoianZldHRlcnMiLCJhIjoiY21sazFhdDg5MDV3dDNlcTI3aXlwejIwaSJ9.ecEavihruz0TZguVQvRiVg';
   const mlyToken = 'MLY|25724468457195152|d9c0ac6f4fbcd6ede3a3ba4e8332729b';
 
-  // 1. Initialize Map
   const map = new mapboxgl.Map({
     container: 'map',
-    style: 'mapbox://styles/mapbox/streets-v11', // Streets style for high contrast
-    zoom: 14,
+    style: 'mapbox://styles/mapbox/streets-v11',
+    zoom: 10,
     center: [-87.622088, 41.878781]
   });
 
   map.on('load', () => {
-    // 2. Optimized Global Source
+    // Optimized Source for Panning
     map.addSource('mapillary', {
       type: 'vector',
       tiles: ['https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=' + mlyToken],
-      // We removed minzoom and maxzoom here to allow the map to fetch tiles everywhere
-      buffer: 0,
-      tolerance: 0
+      minzoom: 0,
+      maxzoom: 14,
+      volatile: true // Tells Mapbox to keep re-fetching tiles as you move
     });
 
-    // 3. Add Layer: Bubbles (Image Points)
     map.addLayer({
       id: 'mapillary-points',
       type: 'circle',
       source: 'mapillary',
       'source-layer': 'image',
-      minzoom: 6, // Ensures dots appear even at lower zoom levels
+      // We set a wide minzoom here so dots stay visible longer
+      minzoom: 5, 
       paint: { 
         'circle-radius': 8, 
         'circle-color': '#35af6d', 
@@ -62,14 +59,12 @@
       }
     });
 
-    // 4. Click Event: Updates the iframe URL with the clicked Image ID
     map.on('click', 'mapillary-points', (e) => {
       const imageId = e.features[0].properties.id;
       const newUrl = `https://www.mapillary.com/embed?image_key=${imageId}&style=photo`;
       document.getElementById('mly-frame').src = newUrl;
     });
 
-    // Cursor Feedback
     map.on('mouseenter', 'mapillary-points', () => { map.getCanvas().style.cursor = 'pointer'; });
     map.on('mouseleave', 'mapillary-points', () => { map.getCanvas().style.cursor = ''; });
   });
