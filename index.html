@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Mapillary Project Tracker - Date & User Filter</title>
+<title>Mapillary Project Tracker - Advanced Filters</title>
 <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
 <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
 <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
@@ -15,12 +15,14 @@
   .controls {
     position: absolute; top: 10px; left: 10px; z-index: 10;
     background: white; padding: 15px; border-radius: 8px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.3); width: 220px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3); width: 260px;
+    display: flex; flex-direction: column; gap: 10px;
   }
-  .row { margin-bottom: 10px; display: flex; flex-direction: column; gap: 5px; }
-  label { font-size: 12px; font-weight: bold; color: #444; }
-  input, select { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
-  button { padding: 10px; background: #35af6d; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+  .row { display: flex; flex-direction: column; gap: 4px; }
+  label { font-size: 11px; font-weight: bold; color: #555; text-transform: uppercase; }
+  input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
+  button { padding: 12px; background: #35af6d; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 5px; }
+  button:hover { background: #2d945b; }
 </style>
 </head>
 <body>
@@ -28,17 +30,17 @@
 <div class="controls">
   <div class="row">
     <label>Username</label>
-    <input type="text" id="user-input" placeholder="jvetters" value="jvetters">
+    <input type="text" id="user-input" placeholder="e.g. jvetters" value="jvetters">
   </div>
   <div class="row">
-    <label>Timeframe</label>
-    <select id="date-input">
-      <option value="0">All Time</option>
-      <option value="1577836800000">Since 2020</option>
-      <option value="1735689600000">Recent (Since Jan 2025)</option>
-    </select>
+    <label>From Date</label>
+    <input type="date" id="date-from">
   </div>
-  <button onclick="applyFilters()">Update Map</button>
+  <div class="row">
+    <label>To Date</label>
+    <input type="date" id="date-to">
+  </div>
+  <button onclick="applyFilters()">Update Map Layers</button>
 </div>
 
 <div id="map"></div>
@@ -53,7 +55,7 @@
   const map = new mapboxgl.Map({
     container: 'map',
     style: 'mapbox://styles/mapbox/streets-v11',
-    zoom: 11,
+    zoom: 12,
     center: [-89.9449, 34.3085] 
   });
 
@@ -68,7 +70,7 @@
       type: 'line',
       source: 'mapillary',
       'source-layer': 'sequence',
-      paint: { 'line-color': '#35af6d', 'line-width': 2, 'line-opacity': 0.8 }
+      paint: { 'line-color': '#35af6d', 'line-width': 2.5, 'line-opacity': 0.7 }
     });
 
     map.addLayer({
@@ -83,20 +85,26 @@
 
   function applyFilters() {
     const user = document.getElementById('user-input').value.trim();
-    const minDate = parseInt(document.getElementById('date-input').value);
+    const fromVal = document.getElementById('date-from').value;
+    const toVal = document.getElementById('date-to').value;
     
-    // Constructing a "Compound Filter"
+    // Mapillary uses Unix timestamps in milliseconds
+    const fromTs = fromVal ? new Date(fromVal).getTime() : 0;
+    const toTs = toVal ? new Date(toVal).getTime() : Date.now();
+    
     let filterArr = ['all'];
     
+    // Username Filter
     if (user !== "") {
       filterArr.push(['==', ['get', 'creator_username'], user]);
     }
     
-    if (minDate > 0) {
-      filterArr.push(['>=', ['get', 'captured_at'], minDate]);
+    // Date Range Filter
+    if (fromTs > 0 || toTs < Date.now()) {
+      filterArr.push(['>=', ['get', 'captured_at'], fromTs]);
+      filterArr.push(['<=', ['get', 'captured_at'], toTs]);
     }
 
-    // Apply only if user has actually added a filter
     const finalFilter = filterArr.length > 1 ? filterArr : null;
     
     if (map.getLayer('mapillary-lines')) map.setFilter('mapillary-lines', finalFilter);
