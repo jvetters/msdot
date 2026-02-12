@@ -2,13 +2,17 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Mapillary Failsafe Viewer</title>
+<title>Mapillary + Mapbox Failsafe Viewer</title>
 <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="referrer" content="no-referrer-when-downgrade">
+
 <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
 <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+
 <style>
   body { margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; }
   #map { flex: 1; width: 100%; }
+  /* Split screen: Map on top (60%), Viewer on bottom (40%) */
   #mly-container { height: 40%; width: 100%; border-top: 5px solid #35af6d; background: #000; }
   iframe { width: 100%; height: 100%; border: none; }
 </style>
@@ -21,41 +25,17 @@
 </div>
 
 <script>
+  // Your Access Tokens
   mapboxgl.accessToken = 'pk.eyJ1IjoianZldHRlcnMiLCJhIjoiY21sazFhdDg5MDV3dDNlcTI3aXlwejIwaSJ9.ecEavihruz0TZguVQvRiVg';
   const mlyToken = 'MLY|25724468457195152|d9c0ac6f4fbcd6ede3a3ba4e8332729b';
 
+  // 1. Initialize Map
   const map = new mapboxgl.Map({
     container: 'map',
-    style: 'mapbox://styles/mapbox/streets-v11',
+    style: 'mapbox://styles/mapbox/streets-v11', // Streets style for high contrast
     zoom: 14,
     center: [-87.622088, 41.878781]
   });
 
   map.on('load', () => {
-    map.addSource('mapillary', {
-      type: 'vector',
-      tiles: ['https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=' + mlyToken],
-      minzoom: 6, maxzoom: 14
-    });
-
-    map.addLayer({
-      id: 'mapillary-points',
-      type: 'circle',
-      source: 'mapillary',
-      'source-layer': 'image',
-      paint: { 'circle-radius': 8, 'circle-color': '#35af6d', 'circle-stroke-width': 2, 'circle-stroke-color': '#fff' }
-    });
-
-    // When clicking a bubble, we simply update the URL of the iframe
-    map.on('click', 'mapillary-points', (e) => {
-      const imageId = e.features[0].properties.id;
-      const newUrl = `https://www.mapillary.com/embed?image_key=${imageId}&style=photo`;
-      document.getElementById('mly-frame').src = newUrl;
-    });
-
-    map.on('mouseenter', 'mapillary-points', () => { map.getCanvas().style.cursor = 'pointer'; });
-    map.on('mouseleave', 'mapillary-points', () => { map.getCanvas().style.cursor = ''; });
-  });
-</script>
-</body>
-</html>
+    // 2. Add Source
