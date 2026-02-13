@@ -36,7 +36,7 @@
 
   .mapboxgl-ctrl-geocoder { min-width: 250px; border: 1px solid #35af6d; }
 
-  /* Directional Cone - Native Viewer Style */
+  /* Directional Cone Style - Native Viewer */
   .selection-cone {
     width: 0; height: 0;
     border-left: 8px solid transparent;
@@ -83,8 +83,8 @@
 </div>
 
 <script>
-  // UPDATE THIS WITH YOUR NEW RESTRICTED TOKEN
-  mapboxgl.accessToken = 'REPLACE_WITH_NEW_RESTRICTED_TOKEN';
+  // Inserted your provided token
+  mapboxgl.accessToken = 'pk.eyJ1IjoianZldHRlcnMiLCJhIjoiY21sazFhdDg5MDV3dDNlcTI3aXlwejIwaSJ9.ecEavihruz0TZguVQvRiVg';
   const mlyToken = 'MLY|25724468457195152|d9c0ac6f4fbcd6ede3a3ba4e8332729b';
   let currentImageKey = null;
   let activeMarker = null; 
@@ -171,7 +171,7 @@
     applyDateFilter();
   });
 
-  // ROBUST COMMUNICATION LISTENER
+  // HANDSHAKE LISTENER FOR REAL-TIME SYNC
   window.addEventListener('message', (event) => {
     if (event.origin !== 'https://www.mapillary.com') return;
     try {
@@ -204,7 +204,7 @@
     const frame = document.getElementById('mly-frame');
     frame.src = `https://www.mapillary.com/embed?image_key=${currentImageKey}&style=photo&menu=false&publish=true`;
     
-    // Explicit Handshake: Force subscription on load
+    // Explicit Handshake Subscription
     frame.onload = () => {
         const msg = JSON.stringify({type: 'mly.subscribe', value: 'bearing'});
         frame.contentWindow.postMessage(msg, 'https://www.mapillary.com');
@@ -250,7 +250,7 @@
         a.remove();
         window.URL.revokeObjectURL(downloadUrl);
       }
-    } catch (err) { alert("Download security block. Try right-clicking in the viewer."); }
+    } catch (err) { alert("Download security block. Right-click the image in the viewer to save."); }
   }
 
   map.on('mouseenter', 'mapillary-points', () => { map.getCanvas().style.cursor = 'pointer'; });
