@@ -27,108 +27,100 @@
 </div>
 
 <script>
-  const urlParams = new URLSearchParams(window.location.search);
-  const clientID = urlParams.get('id') || 'MSDOT'; 
+  // Ensure this matches your GitHub folder name EXACTLY
+  const clientID = 'MSDOT'; 
   
-  let config = {};
   mapboxgl.accessToken = 'pk.eyJ1IjoianZldHRlcnMiLCJhIjoiY21sazFhdDg5MDV3dDNlcTI3aXlwejIwaSJ9.ecEavihruz0TZguVQvRiVg';
   const mlyToken = 'MLY|25724468457195152|d9c0ac6f4fbcd6ede3a3ba4e8332729b';
 
-  async function loadConfig() {
-    try {
-      const response = await fetch(`./${clientID}/config.json`);
-      config = await response.json();
-      initMap();
-    } catch (e) { console.error("Config missing for:", clientID); }
-  }
+  const map = new mapboxgl.Map({ 
+    container: 'map', 
+    style: 'mapbox://styles/mapbox/light-v11', 
+    zoom: 6, 
+    center: [-89.3985, 32.3547] 
+  });
 
-  function initMap() {
-    const map = new mapboxgl.Map({ 
-      container: 'map', 
-      style: 'mapbox://styles/mapbox/light-v11', 
-      zoom: 6, 
-      center: [-89.3985, 32.3547] 
+  map.on('load', () => {
+    // 1. ADD MAPILLARY
+    map.addSource('mapillary', {
+      type: 'vector',
+      tiles: [`https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${mlyToken}`],
+      maxzoom: 17
     });
 
-    map.on('load', () => {
-      // 1. MAPILLARY VECTORS (Sequence + Image)
-      map.addSource('mapillary', {
-        type: 'vector',
-        tiles: [`https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${mlyToken}`],
-        maxzoom: 17
-      });
+    // Road Runs (Lines)
+    map.addLayer({
+      id: 'mapillary-lines',
+      type: 'line',
+      source: 'mapillary',
+      'source-layer': 'sequence',
+      paint: { 'line-color': '#35af6d', 'line-width': 2, 'line-opacity': 0.7 }
+    });
 
-      // The Bubbles (Image points)
-      map.addLayer({
-        id: 'mapillary-points',
-        type: 'circle',
-        source: 'mapillary',
-        'source-layer': 'image',
-        paint: {
-          'circle-radius': ['interpolate', ['linear'], ['zoom'], 12, 2, 17, 6],
-          'circle-color': '#35af6d',
-          'circle-stroke-width': 1,
-          'circle-stroke-color': '#fff'
-        }
-      });
+    // Bubbles (Points) - THESE ARE THE CLICKABLE DOTS
+    map.addLayer({
+      id: 'mapillary-points',
+      type: 'circle',
+      source: 'mapillary',
+      'source-layer': 'image',
+      paint: {
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 12, 2, 17, 6],
+        'circle-color': '#35af6d',
+        'circle-stroke-width': 1,
+        'circle-stroke-color': '#fff'
+      }
+    });
 
-      // 2. DEBRIS POINTS (From your MSDOT folder)
-      if (config.pointsFile) {
-        map.addSource('debris-points', {
-          type: 'geojson',
-          data: `./${clientID}/${config.pointsFile}`
-        });
+    // 2. ADD DEBRIS POINTS
+    map.addSource('debris-points', {
+      type: 'geojson',
+      data: `./${clientID}/Debris_Points.json`
+    });
 
+    map.addLayer({
+      id: 'debris-layer',
+      type: 'circle',
+      source: 'debris-points',
+      paint: {
+        'circle-radius': 8,
+        'circle-color': '#e74c3c', // Bright Red
+        'circle-stroke-width': 2,
+        'circle-stroke-color': '#fff'
+      }
+    });
+
+    // 3. ADD COUNTIES
+    fetch(`./${clientID}/Mississippi_Counties.json`)
+      .then(res => res.json())
+      .then(data => {
+        map.addSource('counties', { type: 'geojson', data: data });
         map.addLayer({
-          id: 'debris-layer',
-          type: 'circle',
-          source: 'debris-points',
-          paint: {
-            'circle-radius': 8,
-            'circle-color': '#e74c3c', // Bright Red
-            'circle-stroke-width': 2,
-            'circle-stroke-color': '#fff'
+          id: 'county-fills',
+          type: 'fill',
+          source: 'counties',
+          paint: { 'fill-color': '#35af6d', 'fill-opacity': 0.1, 'fill-outline-color': '#000' }
+        }, 'mapillary-lines'); // Ensure polygons are behind lines
+
+        // Auto-zoom to counties
+        const bounds = new mapboxgl.LngLatBounds();
+        data.features.forEach(f => {
+          if (f.geometry && f.geometry.coordinates) {
+            const coords = f.geometry.type === 'Polygon' ? f.geometry.coordinates[0] : f.geometry.coordinates;
+            coords.forEach(c => bounds.extend(Array.isArray(c[0]) ? c[0] : c));
           }
         });
-      }
+        map.fitBounds(bounds, { padding: 40 });
+      });
+  });
 
-      // 3. COUNTIES
-      if (config.polygonFile) {
-        fetch(`./${clientID}/${config.polygonFile}`)
-          .then(res => res.json())
-          .then(data => {
-            map.addSource('counties', { type: 'geojson', data: data });
-            map.addLayer({
-              id: 'county-fills',
-              type: 'fill',
-              source: 'counties',
-              paint: { 'fill-color': '#888', 'fill-opacity': 0.1, 'fill-outline-color': '#000' }
-            }, 'mapillary-points'); // Under the bubbles
+  // CLICK BUBBLE INTERACTIVITY
+  map.on('click', 'mapillary-points', (e) => {
+    const imgID = e.features[0].properties.id;
+    document.getElementById('mly-frame').src = `https://www.mapillary.com/embed?image_key=${imgID}&style=photo&menu=false`;
+  });
 
-            // Fit bounds
-            const bounds = new mapboxgl.LngLatBounds();
-            data.features.forEach(f => {
-              if (f.geometry && f.geometry.coordinates) {
-                const coords = f.geometry.type === 'Polygon' ? f.geometry.coordinates[0] : f.geometry.coordinates;
-                coords.forEach(c => bounds.extend(Array.isArray(c[0]) ? c[0] : c));
-              }
-            });
-            map.fitBounds(bounds, { padding: 40 });
-          });
-      }
-    });
-
-    // CLICK BUBBLE TO SEE VIEW
-    map.on('click', 'mapillary-points', (e) => {
-      const imgID = e.features[0].properties.id;
-      document.getElementById('mly-frame').src = `https://www.mapillary.com/embed?image_key=${imgID}&style=photo&menu=false`;
-    });
-
-    map.on('mouseenter', 'mapillary-points', () => { map.getCanvas().style.cursor = 'pointer'; });
-    map.on('mouseleave', 'mapillary-points', () => { map.getCanvas().style.cursor = ''; });
-  }
-
-  loadConfig();
+  map.on('mouseenter', 'mapillary-points', () => { map.getCanvas().style.cursor = 'pointer'; });
+  map.on('mouseleave', 'mapillary-points', () => { map.getCanvas().style.cursor = ''; });
 </script>
 </body>
 </html>
