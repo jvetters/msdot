@@ -38,14 +38,13 @@
   });
 
   map.on('load', () => {
-    // 1. ADD MAPILLARY DATA (Lines and Bubbles)
+    // 1. MAPILLARY DATA
     map.addSource('mapillary', {
       type: 'vector',
       tiles: [`https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${mlyToken}`],
       maxzoom: 17
     });
 
-    // Green Lines (Sequences)
     map.addLayer({
       id: 'mapillary-lines',
       type: 'line',
@@ -54,7 +53,6 @@
       paint: { 'line-color': '#35af6d', 'line-width': 2, 'line-opacity': 0.7 }
     });
 
-    // Green Bubbles (Images) - MUST have 'image' as source-layer
     map.addLayer({
       id: 'mapillary-points',
       type: 'circle',
@@ -68,7 +66,7 @@
       }
     });
 
-    // 2. ADD DEBRIS POINTS (Local JSON)
+    // 2. HARD-CODED DEBRIS POINTS
     map.addSource('debris-points', {
       type: 'geojson',
       data: './MSDOT/Debris_Points.json'
@@ -80,13 +78,13 @@
       source: 'debris-points',
       paint: {
         'circle-radius': 8,
-        'circle-color': '#e74c3c', // Red points for debris
+        'circle-color': '#e74c3c', 
         'circle-stroke-width': 2,
         'circle-stroke-color': '#fff'
       }
     });
 
-    // 3. ADD COUNTY POLYGONS (Local JSON)
+    // 3. HARD-CODED COUNTIES
     fetch('./MSDOT/Mississippi_Counties.json')
       .then(res => res.json())
       .then(data => {
@@ -96,9 +94,8 @@
           type: 'fill',
           source: 'counties',
           paint: { 'fill-color': '#35af6d', 'fill-opacity': 0.1, 'fill-outline-color': '#000' }
-        }, 'mapillary-lines'); // Puts polygons behind lines
+        }, 'mapillary-lines'); 
 
-        // Auto-zoom to data
         const bounds = new mapboxgl.LngLatBounds();
         data.features.forEach(f => {
           if (f.geometry && f.geometry.coordinates) {
@@ -110,7 +107,7 @@
       });
   });
 
-  // RESTORE CLICK INTERACTIVITY
+  // INTERACTIVITY
   map.on('click', 'mapillary-points', (e) => {
     const imgID = e.features[0].properties.id;
     document.getElementById('mly-frame').src = `https://www.mapillary.com/embed?image_key=${imgID}&style=photo&menu=false`;
