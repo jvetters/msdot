@@ -49,7 +49,7 @@
     <label>From Date</label><input type="date" id="date-from" value="2026-02-03">
     <label>To Date</label><input type="date" id="date-to">
     <button onclick="applyDateFilter()">Filter Road Runs</button>
-    <button id="download-btn" onclick="downloadFlatImage()">Download Flat Image</button>
+    <button id="download-btn" onclick="downloadFlatImage()">Download Flat View</button>
     <hr style="border:0; border-top:1px solid #eee; margin: 4px 0;">
     <label>Debris Type Filter</label>
     <select id="debris-type-selector" onchange="applyDebrisFilter()">
@@ -104,7 +104,7 @@
   }
 
   map.on('load', () => {
-    // 1. Mapillary Tiles and Styling
+    // 1. Mapillary Tiles and Sequences
     map.addSource('mapillary', {
       type: 'vector',
       tiles: [`https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${mlyToken}`],
@@ -112,28 +112,10 @@
       maxzoom: 24
     });
 
-    map.addLayer({
-      id: 'mapillary-lines',
-      type: 'line',
-      source: 'mapillary',
-      'source-layer': 'sequence',
-      paint: { 'line-color': '#35af6d', 'line-width': 1.5, 'line-opacity': 0.6 }
-    });
+    map.addLayer({ id: 'mapillary-lines', type: 'line', source: 'mapillary', 'source-layer': 'sequence', paint: { 'line-color': '#35af6d', 'line-width': 1.5, 'line-opacity': 0.6 } });
+    map.addLayer({ id: 'mapillary-points', type: 'circle', source: 'mapillary', 'source-layer': 'image', paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 1, 10, 2.5, 14, 6, 22, 18], 'circle-color': '#35af6d', 'circle-stroke-width': 1, 'circle-stroke-color': '#fff' } });
 
-    map.addLayer({
-      id: 'mapillary-points',
-      type: 'circle',
-      source: 'mapillary',
-      'source-layer': 'image',
-      paint: { 
-        'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 1, 10, 2.5, 14, 6, 22, 18],
-        'circle-color': '#35af6d', 
-        'circle-stroke-width': 1, 
-        'circle-stroke-color': '#fff'
-      }
-    });
-
-    // 2. Full County Boundary Logic and Zoom-to-fit
+    // 2. County Boundaries and Formatting
     fetch('./MSDOT/Mississippi_Counties.json')
       .then(res => res.json())
       .then(data => {
@@ -168,7 +150,7 @@
         map.fitBounds(bounds, { padding: 40 });
       });
 
-    // 3. Detailed Debris Point Parsing and Styling
+    // 3. Debris Points and Coordinate Conversion
     fetch('./MSDOT/Debris_Points.json')
       .then(res => res.json())
       .then(pointData => {
@@ -204,7 +186,7 @@
     applyDateFilter();
   });
 
-  // Interactions and Filtering Logic
+  // Event Handlers for UI Interactivity
   map.on('click', 'mapillary-points', (e) => {
     currentImageKey = e.features[0].properties.id;
     document.getElementById('mly-frame').src = `https://www.mapillary.com/embed?image_key=${currentImageKey}&style=photo&menu=false`;
@@ -235,28 +217,16 @@
     map.setFilter('debris-layer', selectedType === 'All' ? null : ['==', ['get', 'Debris Type'], selectedType]);
   }
 
-  async function downloadFlatImage() {
-    if (!currentImageKey) {
-      alert("Please select a point on the map first.");
-      return;
-    }
-    try {
-      const res = await fetch(`https://graph.mapillary.com/${currentImageKey}?fields=thumb_2048_url&access_token=${mlyToken}`);
-      const data = await res.json();
-      const imageUrl = data.thumb_2048_url;
-      if (imageUrl) {
-        const imageRes = await fetch(imageUrl);
-        const blob = await imageRes.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `Debris_Flat_${currentImageKey}.jpg`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        window.URL.revokeObjectURL(url);
-      }
-    } catch (err) { console.error("Download failed:", err); }
+  // Updated Download: Pulls flattened crop directly from image server
+  function downloadFlatImage() {
+    if (!currentImageKey) { alert("Select a point first."); return; }
+    const flatUrl = `https://images.mapillary.com/${currentImageKey}/thumb-2048.jpg`;
+    const link = document.createElement('a');
+    link.href = flatUrl;
+    link.download = `Flat_Debris_View_${currentImageKey}.jpg`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
   }
 
   map.on('mouseenter', 'mapillary-points', () => { map.getCanvas().style.cursor = 'pointer'; });
