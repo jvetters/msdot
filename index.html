@@ -49,7 +49,7 @@
     <label>From Date</label><input type="date" id="date-from" value="2026-02-03">
     <label>To Date</label><input type="date" id="date-to">
     <button onclick="applyDateFilter()">Filter Road Runs</button>
-    <button id="download-btn" onclick="downloadFlatImage()">Download Flat View</button>
+    <button id="download-btn" onclick="downloadFlatImage()">Download Image</button>
     <hr style="border:0; border-top:1px solid #eee; margin: 4px 0;">
     <label>Debris Type Filter</label>
     <select id="debris-type-selector" onchange="applyDebrisFilter()">
@@ -104,7 +104,7 @@
   }
 
   map.on('load', () => {
-    // 1. Mapillary Sequences and Points
+    // 1. Mapillary Tiles
     map.addSource('mapillary', {
       type: 'vector',
       tiles: [`https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${mlyToken}`],
@@ -114,6 +114,26 @@
 
     map.addLayer({ id: 'mapillary-lines', type: 'line', source: 'mapillary', 'source-layer': 'sequence', paint: { 'line-color': '#35af6d', 'line-width': 1.5, 'line-opacity': 0.6 } });
     map.addLayer({ id: 'mapillary-points', type: 'circle', source: 'mapillary', 'source-layer': 'image', paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 1, 10, 2.5, 14, 6, 22, 18], 'circle-color': '#35af6d', 'circle-stroke-width': 1, 'circle-stroke-color': '#fff' } });
+
+    // NEW: Directional Indicator Layer
+    map.addLayer({
+      id: 'mapillary-direction',
+      type: 'symbol',
+      source: 'mapillary',
+      'source-layer': 'image',
+      layout: {
+        'icon-image': 'triangle-15', // Standard Mapbox triangle for direction
+        'icon-rotate': ['get', 'compass_angle'],
+        'icon-rotation-alignment': 'map',
+        'icon-allow-overlap': true,
+        'icon-ignore-placement': true,
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 12, 0.5, 17, 1.5]
+      },
+      paint: {
+        'icon-color': '#ff9f43',
+        'icon-opacity': ['case', ['boolean', ['feature-state', 'selected'], false], 1, 0] // Only show on selection
+      }
+    });
 
     // 2. County Boundaries Logic Restored
     fetch('./MSDOT/Mississippi_Counties.json')
@@ -148,8 +168,19 @@
     applyDateFilter();
   });
 
+  let selectedImageId = null;
+
   map.on('click', 'mapillary-points', (e) => {
-    currentImageKey = e.features[0].properties.id;
+    const feature = e.features[0];
+    currentImageKey = feature.properties.id;
+    
+    // UI Update for Directional Indicator
+    if (selectedImageId !== null) {
+      map.setFeatureState({ source: 'mapillary', sourceLayer: 'image', id: selectedImageId }, { selected: false });
+    }
+    selectedImageId = feature.id;
+    map.setFeatureState({ source: 'mapillary', sourceLayer: 'image', id: selectedImageId }, { selected: true });
+
     document.getElementById('mly-frame').src = `https://www.mapillary.com/embed?image_key=${currentImageKey}&style=photo&menu=false`;
   });
 
@@ -171,31 +202,26 @@
     map.setFilter('debris-layer', type === 'All' ? null : ['==', ['get', 'Debris Type'], type]);
   }
 
-  // UPDATED DOWNLOAD: Fetches pre-processed high-res flat image directly via Graph API
+  // Stable Download Logic
   async function downloadFlatImage() {
     if (!currentImageKey) { alert("Select a point first."); return; }
     try {
-      // images.mapillary.com is internal; Graph API thumb_2048_url provides the flattened view
       const res = await fetch(`https://graph.mapillary.com/${currentImageKey}?fields=thumb_2048_url&access_token=${mlyToken}`);
       const data = await res.json();
       const imageUrl = data.thumb_2048_url;
-
       if (imageUrl) {
         const imageRes = await fetch(imageUrl);
         const blob = await imageRes.blob();
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `Debris_Flat_View_${currentImageKey}.jpg`;
+        a.download = `Debris_View_${currentImageKey}.jpg`;
         document.body.appendChild(a);
         a.click();
         a.remove();
         window.URL.revokeObjectURL(url);
       }
-    } catch (err) { 
-        console.error("Download failed:", err);
-        alert("Download failed. This is likely a browser security restriction. Please right-click the image in the viewer if possible.");
-    }
+    } catch (err) { alert("Download blocked by browser security. Please right-click the image in the viewer."); }
   }
 
   map.on('mouseenter', 'mapillary-points', () => { map.getCanvas().style.cursor = 'pointer'; });
