@@ -33,7 +33,7 @@
 <script>
   // Step 1: Detect Client Folder from URL
   const urlParams = new URLSearchParams(window.location.search);
-  const clientID = urlParams.get('id') || 'MSDOT'; // Defaults to MSDOT if no ?id= is used
+  const clientID = urlParams.get('id') || 'MSDOT'; // Must match GitHub folder name exactly
   
   let config = {};
   mapboxgl.accessToken = 'pk.eyJ1IjoianZldHRlcnMiLCJhIjoiY21sazFhdDg5MDV3dDNlcTI3aXlwejIwaSJ9.ecEavihruz0TZguVQvRiVg';
@@ -47,15 +47,22 @@
     return colour;
   }
 
-  // Step 2: Fetch config.json from the client folder
+  // Step 2: Fetch config.json with Debug Logging
   async function loadConfig() {
+    const configPath = `./${clientID}/config.json`;
+    console.log("Searching for config at:", configPath);
+
     try {
-      const response = await fetch(`./${clientID}/config.json`);
-      if (!response.ok) throw new Error("Config not found");
+      const response = await fetch(configPath);
+      if (!response.ok) {
+         console.error(`HTTP Error: ${response.status} at ${configPath}`);
+         return;
+      }
       config = await response.json();
+      console.log("Config loaded successfully:", config);
       initMap();
     } catch (e) {
-      console.error("Critical Error: Map cannot load without a valid config.json in the folder:", clientID);
+      console.error("Fetch failed. Check folder name capitalization:", e);
     }
   }
 
@@ -68,14 +75,13 @@
     });
 
     map.on('load', () => {
-      // Load Mapillary
       map.addSource('mapillary', { 
         type: 'vector', 
         tiles: [`https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${mlyToken}`], 
         maxzoom: 17 
       });
 
-      // Load Static Points from MSDOT folder
+      // Load Points from subfolder
       if (config.pointsFile) {
         map.addSource('live-points', { type: 'geojson', data: `./${clientID}/${config.pointsFile}` });
         map.addLayer({ 
@@ -86,14 +92,13 @@
         });
       }
 
-      // Load Polygons from MSDOT folder
+      // Load Polygons from subfolder
       if (config.polygonFile) {
         fetch(`./${clientID}/${config.polygonFile}`)
           .then(res => res.json())
           .then(data => {
             data.features.forEach(f => f.properties.dynamicColor = stringToColour(f.properties.Name || "default"));
             map.addSource('client-data', { type: 'geojson', data: data });
-            
             map.addLayer({ 
               id: 'county-fills', 
               type: 'fill', 
@@ -107,14 +112,6 @@
               source: 'mapillary', 
               'source-layer': 'sequence', 
               paint: { 'line-color': '#35af6d', 'line-width': 2, 'line-opacity': 0.7 } 
-            }, config.pointsFile ? 'live-points-layer' : undefined);
-
-            map.addLayer({ 
-              id: 'mapillary-points', 
-              type: 'circle', 
-              source: 'mapillary', 
-              'source-layer': 'image', 
-              paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 1.5, 17, 8], 'circle-color': '#35af6d', 'circle-stroke-width': 1, 'circle-stroke-color': '#fff' } 
             });
 
             const bounds = new mapboxgl.LngLatBounds();
@@ -129,7 +126,12 @@
       }
     });
 
-    // Date Filter Logic
-    window.applyDateFilter = () => {
-      const fromTs = document.getElementById('date-from').value ? new Date(document.getElementById('date-from').value).getTime() : 0;
-      const toTs = document.getElementById('date-to').value ? new Date(document.getElementById('date-to').value).getTime()
+    map.on('click', 'mapillary-points', (e) => {
+      document.getElementById('mly-frame').src = `https://www.mapillary.com/embed?image_key=${e.features[0].properties.id}&style=photo&menu=false`;
+    });
+    map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
+  }
+  loadConfig();
+</script>
+</body>
+</html>
