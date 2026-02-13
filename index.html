@@ -7,32 +7,20 @@
 <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
 <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
 <style>
-  body { margin: 0; padding: 0; font-family: 'Helvetica Neue', Arial, sans-serif; background: #f4f4f4; overflow: hidden; }
+  body { margin: 0; padding: 0; font-family: sans-serif; background: #f4f4f4; overflow: hidden; }
   #mly-container { position: absolute; top: 0; bottom: 0; left: 0; width: 50%; background: #000; border-right: 2px solid #35af6d; }
   #map-container { position: absolute; top: 0; bottom: 0; right: 0; width: 50%; }
   #map { width: 100%; height: 100%; }
   iframe { width: 100%; height: 100%; border: none; }
-  .controls { position: absolute; top: 15px; right: 15px; z-index: 10; background: white; padding: 12px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 180px; display: flex; flex-direction: column; gap: 8px; }
-  label { font-size: 10px; font-weight: bold; color: #666; text-transform: uppercase; }
-  input { padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px; }
+  .controls { position: absolute; top: 15px; right: 15px; z-index: 10; background: white; padding: 10px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
   button { padding: 10px; background: #35af6d; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
-  button:hover { background: #2d965d; }
 </style>
 </head>
 <body>
 
-<div id="mly-container">
-  <iframe id="mly-frame" src="https://www.mapillary.com/embed?style=photo&menu=false"></iframe>
-</div>
-
+<div id="mly-container"><iframe id="mly-frame" src="https://www.mapillary.com/embed?style=photo&menu=false"></iframe></div>
 <div id="map-container">
-  <div class="controls">
-    <label>From Date</label>
-    <input type="date" id="date-from">
-    <label>To Date</label>
-    <input type="date" id="date-to">
-    <button onclick="applyDateFilter()">Filter Road Runs</button>
-  </div>
+  <div class="controls"><button onclick="applyFilter()">Filter Road Runs</button></div>
   <div id="map"></div>
 </div>
 
@@ -44,8 +32,7 @@
     container: 'map',
     style: 'mapbox://styles/mapbox/light-v11',
     zoom: 6,
-    center: [-89.3985, 32.3547],
-    maxZoom: 17
+    center: [-89.3985, 32.3547]
   });
 
   const stringToColour = (str) => {
@@ -57,36 +44,26 @@
   }
 
   map.on('load', () => {
-    // 1. Load Counties First
+    // 1. COUNTIES
     fetch('./MSDOT/Mississippi_Counties.json')
       .then(res => res.json())
       .then(data => {
-        data.features.forEach(f => {
-          f.properties.dynamicColor = stringToColour(f.properties.Name || "default");
-        });
-
+        data.features.forEach(f => f.properties.dynamicColor = stringToColour(f.properties.Name || "default"));
         map.addSource('counties', { type: 'geojson', data: data });
         map.addLayer({
           id: 'county-fills',
           type: 'fill',
           source: 'counties',
-          paint: {
-            'fill-color': ['get', 'dynamicColor'],
-            'fill-opacity': 0.15,
-            'fill-outline-color': '#000'
-          }
+          paint: { 'fill-color': ['get', 'dynamicColor'], 'fill-opacity': 0.15, 'fill-outline-color': '#000' }
         });
 
-        // 2. Load Debris Points with Geometry Fix & Color Match
+        // 2. DEBRIS POINTS - WITH TYPE STYLING
         fetch('./MSDOT/Debris_Points.json')
           .then(res => res.json())
           .then(pointData => {
             pointData.features.forEach(f => {
               if (f.properties.Longitude && f.properties.Latitude) {
-                f.geometry = {
-                  type: 'Point',
-                  coordinates: [parseFloat(f.properties.Longitude), parseFloat(f.properties.Latitude)]
-                };
+                f.geometry = { type: 'Point', coordinates: [parseFloat(f.properties.Longitude), parseFloat(f.properties.Latitude)] };
               }
             });
             map.addSource('debris-points', { type: 'geojson', data: pointData });
@@ -99,25 +76,23 @@
                 'circle-stroke-width': 2,
                 'circle-stroke-color': '#fff',
                 'circle-color': [
-                  'match',
-                  ['get', 'Debris Type'],
+                  'match', ['get', 'Debris Type'],
                   'Hanger', '#f1c40f',  // Yellow
                   'Leaner', '#e67e22',  // Orange
                   'VEG', '#2ecc71',     // Green
                   'C&D', '#9b59b6',     // Purple
-                  '#e74c3c'             // Default: Red
+                  '#e74c3c'             // Default Red
                 ]
               }
             });
           });
 
-        // 3. Load Mapillary Interactivity
+        // 3. MAPILLARY
         map.addSource('mapillary', {
           type: 'vector',
           tiles: [`https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${mlyToken}`],
           maxzoom: 17
         });
-
         map.addLayer({
           id: 'mapillary-lines',
           type: 'line',
@@ -125,30 +100,28 @@
           'source-layer': 'sequence',
           paint: { 'line-color': '#35af6d', 'line-width': 2, 'line-opacity': 0.7 }
         });
-
         map.addLayer({
           id: 'mapillary-points',
           type: 'circle',
           source: 'mapillary',
           'source-layer': 'image',
-          paint: { 
-            'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 1.5, 17, 8],
-            'circle-color': '#35af6d', 
-            'circle-stroke-width': 1, 
-            'circle-stroke-color': '#fff' 
-          }
+          paint: { 'circle-radius': 5, 'circle-color': '#35af6d', 'circle-stroke-width': 1, 'circle-stroke-color': '#fff' }
         });
 
         const bounds = new mapboxgl.LngLatBounds();
         data.features.forEach(f => {
-          if (f.geometry && f.geometry.coordinates) {
-            const coords = f.geometry.type === 'Polygon' ? f.geometry.coordinates[0] : f.geometry.coordinates;
-            coords.forEach(c => bounds.extend(Array.isArray(c[0]) ? c[0] : c));
-          }
+           if (f.geometry && f.geometry.coordinates[0]) {
+             f.geometry.coordinates[0].forEach(coord => bounds.extend(coord));
+           }
         });
         map.fitBounds(bounds, { padding: 40 });
       });
   });
 
-  function applyDateFilter() {
-    const fromTs = document.getElementById('date-from').value ? new Date(document.getElementById
+  map.on('click', 'mapillary-points', (e) => {
+    document.getElementById('mly-frame').src = `https://www.mapillary.com/embed?image_key=${e.features[0].properties.id}&style=photo&menu=false`;
+  });
+  map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
+</script>
+</body>
+</html>
