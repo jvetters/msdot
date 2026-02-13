@@ -12,23 +12,40 @@
   #map-container { position: absolute; top: 0; bottom: 0; right: 0; width: 50%; }
   #map { width: 100%; height: 100%; }
   iframe { width: 100%; height: 100%; border: none; }
-  .controls { position: absolute; top: 15px; right: 15px; z-index: 10; background: white; padding: 12px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 180px; display: flex; flex-direction: column; gap: 8px; }
+
+  /* UI Controls & Legend Panel */
+  .controls {
+    position: absolute; top: 15px; right: 15px; z-index: 10;
+    background: white; padding: 12px; border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 180px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
   label { font-size: 10px; font-weight: bold; color: #666; text-transform: uppercase; }
   input, select { padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px; width: 100%; }
   button { padding: 10px; background: #35af6d; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
   button:hover { background: #2d965d; }
+
+  /* Legend Styling */
+  .legend-container { margin-top: 5px; display: flex; flex-direction: column; gap: 4px; }
+  .legend-item { display: flex; align-items: center; font-size: 11px; color: #444; font-weight: bold; }
+  .legend-key { width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; border: 1px solid #fff; }
 </style>
 </head>
 <body>
 
-<div id="mly-container"><iframe id="mly-frame" src="https://www.mapillary.com/embed?style=photo&menu=false"></iframe></div>
+<div id="mly-container">
+  <iframe id="mly-frame" src="https://www.mapillary.com/embed?style=photo&menu=false"></iframe>
+</div>
+
 <div id="map-container">
   <div class="controls">
     <label>From Date</label><input type="date" id="date-from">
     <label>To Date</label><input type="date" id="date-to">
     <button onclick="applyDateFilter()">Filter Road Runs</button>
+    
     <hr style="border:0; border-top:1px solid #eee; margin: 4px 0;">
-    <label>Debris Type</label>
+    
+    <label>Debris Type Filter</label>
     <select id="debris-type-selector" onchange="applyDebrisFilter()">
       <option value="All">All Types</option>
       <option value="Hanger">Hanger</option>
@@ -36,6 +53,17 @@
       <option value="VEG">VEG</option>
       <option value="C&D">C&D</option>
     </select>
+
+    <hr style="border:0; border-top:1px solid #eee; margin: 4px 0;">
+
+    <label>Legend</label>
+    <div class="legend-container">
+      <div class="legend-item"><div class="legend-key" style="background: #f1c40f;"></div>Hanger</div>
+      <div class="legend-item"><div class="legend-key" style="background: #e67e22;"></div>Leaner</div>
+      <div class="legend-item"><div class="legend-key" style="background: #2ecc71;"></div>VEG</div>
+      <div class="legend-item"><div class="legend-key" style="background: #9b59b6;"></div>C&D</div>
+      <div class="legend-item"><div class="legend-key" style="background: #e74c3c;"></div>Unknown</div>
+    </div>
   </div>
   <div id="map"></div>
 </div>
@@ -132,14 +160,17 @@
             'circle-stroke-color': '#fff',
             'circle-color': [
               'match', ['get', 'Debris Type'],
-              'Hanger', '#f1c40f', 'Leaner', '#e67e22', 'VEG', '#2ecc71', 'C&D', '#9b59b6', '#e74c3c'
+              'Hanger', '#f1c40f',
+              'Leaner', '#e67e22',
+              'VEG', '#2ecc71',
+              'C&D', '#9b59b6',
+              '#e74c3c'
             ]
           }
         });
       });
   });
 
-  // Date Filter logic
   function applyDateFilter() {
     const fromTs = document.getElementById('date-from').value ? new Date(document.getElementById('date-from').value).getTime() : 0;
     const toTs = document.getElementById('date-to').value ? new Date(document.getElementById('date-to').value).getTime() : Date.now();
@@ -148,7 +179,6 @@
     if (map.getLayer('mapillary-points')) map.setFilter('mapillary-points', filter);
   }
 
-  // NEW: Debris Type Filter logic
   function applyDebrisFilter() {
     const selectedType = document.getElementById('debris-type-selector').value;
     if (selectedType === 'All') {
