@@ -2,34 +2,16 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Vetted Analytics - Project Portal</title>
+<title>Vetted Analytics - MS County Portal</title>
 <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
 <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
 <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
 <style>
-  /* Stable Absolute Layout for 50/50 Split */
-  body { margin: 0; padding: 0; font-family: sans-serif; background: #1a1a1a; overflow: hidden; }
-  
-  #mly-container {
-    position: absolute; top: 0; bottom: 0; left: 0;
-    width: 50%; background: #000; border-right: 3px solid #35af6d;
-  }
-  #map-container {
-    position: absolute; top: 0; bottom: 0; right: 0;
-    width: 50%;
-  }
+  body { margin: 0; padding: 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background: #1a1a1a; overflow: hidden; }
+  #mly-container { position: absolute; top: 0; bottom: 0; left: 0; width: 50%; background: #000; border-right: 3px solid #35af6d; }
+  #map-container { position: absolute; top: 0; bottom: 0; right: 0; width: 50%; }
   #map { width: 100%; height: 100%; }
   iframe { width: 100%; height: 100%; border: none; }
-
-  .controls {
-    position: absolute; top: 15px; right: 15px; z-index: 10;
-    background: white; padding: 12px; border-radius: 8px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.3); width: 180px;
-    display: flex; flex-direction: column; gap: 8px;
-  }
-  label { font-size: 10px; font-weight: bold; color: #666; text-transform: uppercase; }
-  input { padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px; }
-  button { padding: 10px; background: #35af6d; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
 </style>
 </head>
 <body>
@@ -39,50 +21,43 @@
 </div>
 
 <div id="map-container">
-  <div class="controls">
-    <label>From Date</label>
-    <input type="date" id="date-from">
-    <label>To Date</label>
-    <input type="date" id="date-to">
-    <button onclick="applyDateFilter()">Filter Map</button>
-  </div>
   <div id="map"></div>
 </div>
 
 <script>
-  // 1. Identify Client ID from URL (?id=clientname)
   const urlParams = new URLSearchParams(window.location.search);
-  const projectID = urlParams.get('id'); 
+  const projectID = urlParams.get('id') || 'Mississippi_Counties'; 
 
   mapboxgl.accessToken = 'pk.eyJ1IjoianZldHRlcnMiLCJhIjoiY21sazFhdDg5MDV3dDNlcTI3aXlwejIwaSJ9.ecEavihruz0TZguVQvRiVg';
   const mlyToken = 'MLY|25724468457195152|d9c0ac6f4fbcd6ede3a3ba4e8332729b';
 
   const map = new mapboxgl.Map({
     container: 'map',
-    style: 'mapbox://styles/mapbox/streets-v11',
-    zoom: 12,
-    center: [-89.9449, 34.3085],
-    maxZoom: 17 // Hard lock to keep bubbles visible
+    style: 'mapbox://styles/mapbox/dark-v11', 
+    zoom: 6,
+    center: [-89.3985, 32.3547],
+    maxZoom: 17
   });
 
-  // Force map refresh to avoid "blank" rendering
+  // Generates a unique, consistent color based on the county name
+  const stringToColour = (str) => {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) { hash = str.charCodeAt(i) + ((hash << 5) - hash); }
+    let colour = '#';
+    for (let i = 0; i < 3; i++) {
+      let value = (hash >> (i * 8)) & 0xFF;
+      colour += ('00' + value.toString(16)).substr(-2);
+    }
+    return colour;
+  }
+
   map.on('idle', () => { map.resize(); });
 
   map.on('load', () => {
-    // Mapillary Global Coverage
     map.addSource('mapillary', {
       type: 'vector',
       tiles: [`https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${mlyToken}`],
-      minzoom: 0,
       maxzoom: 17
-    });
-
-    map.addLayer({
-      id: 'mapillary-lines',
-      type: 'line',
-      source: 'mapillary',
-      'source-layer': 'sequence',
-      paint: { 'line-color': '#35af6d', 'line-width': 2.5, 'line-opacity': 0.6 }
     });
 
     map.addLayer({
@@ -90,63 +65,68 @@
       type: 'circle',
       source: 'mapillary',
       'source-layer': 'image',
-      minzoom: 0, 
       paint: { 
-        'circle-radius': ['interpolate', ['linear'], ['zoom'], 0, 1, 10, 2.5, 14, 6, 17, 12],
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 2, 14, 5, 17, 10],
         'circle-color': '#35af6d', 
         'circle-stroke-width': 1, 
         'circle-stroke-color': '#fff' 
       }
     });
 
-    // 2. Client-Specific Data Loader
-    if (projectID) {
-      map.addSource('client-data', {
-        type: 'geojson',
-        // Loads YOUR_ID.json from the /data folder
-        data: `./data/${projectID}.json` 
+    // Fetches the JSON file and adds random colors to each feature on the fly
+    fetch(`./data/${projectID}.json`)
+      .then(response => response.json())
+      .then(data => {
+        data.features.forEach(f => {
+          f.properties.dynamicColor = stringToColour(f.properties.Name || "default");
+        });
+
+        map.addSource('client-data', { type: 'geojson', data: data });
+
+        // Add Colored Polygons
+        map.addLayer({
+          id: 'county-fills',
+          type: 'fill',
+          source: 'client-data',
+          paint: {
+            'fill-color': ['get', 'dynamicColor'],
+            'fill-opacity': 0.4,
+            'fill-outline-color': '#ffffff'
+          }
+        });
+
+        // Add County Name Labels
+        map.addLayer({
+          id: 'county-labels',
+          type: 'symbol',
+          source: 'client-data',
+          layout: {
+            'text-field': ['get', 'Name'],
+            'text-size': 13,
+            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+            'text-justify': 'center'
+          },
+          paint: {
+            'text-color': '#ffffff',
+            'text-halo-color': '#000000',
+            'text-halo-width': 2
+          }
+        });
+
+        // Auto-Zoom to Mississippi Counties
+        const bounds = new mapboxgl.LngLatBounds();
+        data.features.forEach(f => {
+          if (f.geometry && f.geometry.coordinates) {
+            f.geometry.coordinates[0].forEach(coord => bounds.extend(coord));
+          }
+        });
+        map.fitBounds(bounds, { padding: 40 });
       });
 
-      // Show Polygons (Debris Zones/Boundaries)
-      map.addLayer({
-        id: 'client-polygons',
-        type: 'fill',
-        source: 'client-data',
-        filter: ['==', ['geometry-type'], 'Polygon'],
-        paint: { 'fill-color': '#0080ff', 'fill-opacity': 0.3 }
-      });
-
-      // Show Points (Damage Sites/Tickets)
-      map.addLayer({
-        id: 'client-points',
-        type: 'circle',
-        source: 'client-data',
-        filter: ['==', ['geometry-type'], 'Point'],
-        paint: { 'circle-radius': 8, 'circle-color': '#ff0000', 'circle-stroke-width': 2, 'circle-stroke-color': '#fff' }
-      });
-    }
-
-    map.on('mouseenter', 'mapillary-points', () => { map.getCanvas().style.cursor = 'pointer'; });
-    map.on('mouseleave', 'mapillary-points', () => { map.getCanvas().style.cursor = ''; });
-  });
-
-  function applyDateFilter() {
-    const fromVal = document.getElementById('date-from').value;
-    const toVal = document.getElementById('date-to').value;
-    const fromTs = fromVal ? new Date(fromVal).getTime() : 0;
-    const toTs = toVal ? new Date(toVal).getTime() : Date.now();
-    const filter = ['all', ['>=', ['get', 'captured_at'], fromTs], ['<=', ['get', 'captured_at'], toTs]];
-    
-    if (map.getLayer('mapillary-lines')) map.setFilter('mapillary-lines', filter);
-    if (map.getLayer('mapillary-points')) map.setFilter('mapillary-points', filter);
-  }
-
-  map.on('click', (e) => {
-    const features = map.queryRenderedFeatures(e.point, { layers: ['mapillary-points', 'mapillary-lines'] });
-    if (features.length > 0) {
-      const imageId = features[0].properties.id;
+    map.on('click', 'mapillary-points', (e) => {
+      const imageId = e.features[0].properties.id;
       document.getElementById('mly-frame').src = `https://www.mapillary.com/embed?image_key=${imageId}&style=photo&menu=false`;
-    }
+    });
   });
 
   map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
