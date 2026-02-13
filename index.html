@@ -29,13 +29,22 @@
   button:hover { background: #2d965d; }
   
   #download-btn { background: #2c3e50; margin-top: 5px; }
-  #download-btn:hover { background: #1a252f; }
 
   .legend-container { margin-top: 5px; display: flex; flex-direction: column; gap: 4px; }
   .legend-item { display: flex; align-items: center; font-size: 11px; color: #444; font-weight: bold; }
   .legend-key { width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; border: 1px solid #fff; }
 
   .mapboxgl-ctrl-geocoder { min-width: 250px; border: 1px solid #35af6d; }
+
+  /* New Selection Marker Style */
+  .selection-cone {
+    width: 0; height: 0;
+    border-left: 15px solid transparent;
+    border-right: 15px solid transparent;
+    border-bottom: 30px solid #ff9f43; /* The orange wedge */
+    filter: drop-shadow(0 0 2px rgba(0,0,0,0.5));
+    pointer-events: none;
+  }
 </style>
 </head>
 <body>
@@ -76,6 +85,7 @@
   mapboxgl.accessToken = 'pk.eyJ1IjoianZldHRlcnMiLCJhIjoiY21sazFhdDg5MDV3dDNlcTI3aXlwejIwaSJ9.ecEavihruz0TZguVQvRiVg';
   const mlyToken = 'MLY|25724468457195152|d9c0ac6f4fbcd6ede3a3ba4e8332729b';
   let currentImageKey = null;
+  let activeMarker = null; // Track the directional cone marker
 
   const map = new mapboxgl.Map({
     container: 'map',
@@ -109,32 +119,11 @@
       type: 'vector',
       tiles: [`https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${mlyToken}`],
       minzoom: 0,
-      maxzoom: 24,
-      promoteId: 'id'
+      maxzoom: 24
     });
 
     map.addLayer({ id: 'mapillary-lines', type: 'line', source: 'mapillary', 'source-layer': 'sequence', paint: { 'line-color': '#35af6d', 'line-width': 1.5, 'line-opacity': 0.6 } });
     
-    // RESTORED DIRECTIONAL CONE
-    map.addLayer({
-      id: 'mapillary-direction',
-      type: 'symbol',
-      source: 'mapillary',
-      'source-layer': 'image',
-      layout: {
-        'icon-image': 'triangle-15', 
-        'icon-rotate': ['get', 'compass_angle'],
-        'icon-rotation-alignment': 'map',
-        'icon-allow-overlap': true,
-        'icon-ignore-placement': true,
-        'icon-size': ['interpolate', ['linear'], ['zoom'], 12, 1.5, 18, 4] // Larger cone at high zoom
-      },
-      paint: {
-        'icon-color': '#ff9f43',
-        'icon-opacity': ['case', ['boolean', ['feature-state', 'selected'], false], 1, 0] // Only show when selected
-      }
-    });
-
     map.addLayer({ 
         id: 'mapillary-points', 
         type: 'circle', 
@@ -142,8 +131,8 @@
         'source-layer': 'image', 
         paint: { 
             'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 1, 10, 2.5, 14, 6, 22, 18], 
-            'circle-color': ['case', ['boolean', ['feature-state', 'selected'], false], '#ff9f43', '#35af6d'],
-            'circle-stroke-width': ['case', ['boolean', ['feature-state', 'selected'], false], 3, 1], 
+            'circle-color': '#35af6d',
+            'circle-stroke-width': 1, 
             'circle-stroke-color': '#fff' 
         } 
     });
@@ -181,18 +170,25 @@
     applyDateFilter();
   });
 
-  let selectedPointId = null;
-
   map.on('click', 'mapillary-points', (e) => {
     const feature = e.features[0];
     currentImageKey = feature.properties.id;
+    const coords = feature.geometry.coordinates;
+    const angle = feature.properties.compass_angle || 0;
 
-    if (selectedPointId !== null) {
-      map.setFeatureState({ source: 'mapillary', sourceLayer: 'image', id: selectedPointId }, { selected: false });
-    }
-    
-    selectedPointId = feature.id;
-    map.setFeatureState({ source: 'mapillary', sourceLayer: 'image', id: selectedPointId }, { selected: true });
+    // REMOVE OLD CONE AND ADD NEW ONE
+    if (activeMarker) activeMarker.remove();
+
+    const el = document.createElement('div');
+    el.className = 'selection-cone';
+
+    activeMarker = new mapboxgl.Marker({ 
+        element: el, 
+        rotation: angle, 
+        rotationAlignment: 'map' 
+    })
+    .setLngLat(coords)
+    .addTo(map);
 
     document.getElementById('mly-frame').src = `https://www.mapillary.com/embed?image_key=${currentImageKey}&style=photo&menu=false`;
   });
@@ -210,7 +206,7 @@
     const filter = ['all', ['>=', ['get', 'captured_at'], fromTs], ['<=', ['get', 'captured_at'], toTs]];
     if (map.getLayer('mapillary-lines')) map.setFilter('mapillary-lines', filter);
     if (map.getLayer('mapillary-points')) map.setFilter('mapillary-points', filter);
-    if (map.getLayer('mapillary-direction')) map.setFilter('mapillary-direction', filter);
+    if (activeMarker) activeMarker.remove(); // Clear selection if date changes
   }
 
   function applyDebrisFilter() {
@@ -236,7 +232,7 @@
         a.remove();
         window.URL.revokeObjectURL(downloadUrl);
       }
-    } catch (err) { alert("Security block detected. Please right-click the image in the viewer to save."); }
+    } catch (err) { alert("Security block. Right-click image in viewer to save."); }
   }
 
   map.on('mouseenter', 'mapillary-points', () => { map.getCanvas().style.cursor = 'pointer'; });
