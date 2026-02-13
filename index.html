@@ -1,79 +1,5 @@
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<title>Vetted Analytics - MS County Portal</title>
-<meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
-<link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
-<script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
-<style>
-  body { margin: 0; padding: 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background: #1a1a1a; overflow: hidden; }
-  #mly-container { position: absolute; top: 0; bottom: 0; left: 0; width: 50%; background: #000; border-right: 3px solid #35af6d; }
-  #map-container { position: absolute; top: 0; bottom: 0; right: 0; width: 50%; }
-  #map { width: 100%; height: 100%; }
-  iframe { width: 100%; height: 100%; border: none; }
-</style>
-</head>
-<body>
+// ... (Keep Mapillary source and point/line layers as they are) ...
 
-<div id="mly-container">
-  <iframe id="mly-frame" src="https://www.mapillary.com/embed?style=photo&menu=false"></iframe>
-</div>
-
-<div id="map-container">
-  <div id="map"></div>
-</div>
-
-<script>
-  const urlParams = new URLSearchParams(window.location.search);
-  const projectID = urlParams.get('id') || 'Mississippi_Counties'; 
-
-  mapboxgl.accessToken = 'pk.eyJ1IjoianZldHRlcnMiLCJhIjoiY21sazFhdDg5MDV3dDNlcTI3aXlwejIwaSJ9.ecEavihruz0TZguVQvRiVg';
-  const mlyToken = 'MLY|25724468457195152|d9c0ac6f4fbcd6ede3a3ba4e8332729b';
-
-  const map = new mapboxgl.Map({
-    container: 'map',
-    style: 'mapbox://styles/mapbox/dark-v11', 
-    zoom: 6,
-    center: [-89.3985, 32.3547],
-    maxZoom: 17
-  });
-
-  // Generates a unique, consistent color based on the county name
-  const stringToColour = (str) => {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) { hash = str.charCodeAt(i) + ((hash << 5) - hash); }
-    let colour = '#';
-    for (let i = 0; i < 3; i++) {
-      let value = (hash >> (i * 8)) & 0xFF;
-      colour += ('00' + value.toString(16)).substr(-2);
-    }
-    return colour;
-  }
-
-  map.on('idle', () => { map.resize(); });
-
-  map.on('load', () => {
-    map.addSource('mapillary', {
-      type: 'vector',
-      tiles: [`https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${mlyToken}`],
-      maxzoom: 17
-    });
-
-    map.addLayer({
-      id: 'mapillary-points',
-      type: 'circle',
-      source: 'mapillary',
-      'source-layer': 'image',
-      paint: { 
-        'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 2, 14, 5, 17, 10],
-        'circle-color': '#35af6d', 
-        'circle-stroke-width': 1, 
-        'circle-stroke-color': '#fff' 
-      }
-    });
-
-    // Fetches the JSON file and adds random colors to each feature on the fly
     fetch(`./data/${projectID}.json`)
       .then(response => response.json())
       .then(data => {
@@ -83,19 +9,25 @@
 
         map.addSource('client-data', { type: 'geojson', data: data });
 
-        // Add Colored Polygons
+        // 1. ADD COUNTY FILLS FIRST (Bottom of the stack)
         map.addLayer({
           id: 'county-fills',
           type: 'fill',
           source: 'client-data',
           paint: {
             'fill-color': ['get', 'dynamicColor'],
-            'fill-opacity': 0.4,
-            'fill-outline-color': '#ffffff'
+            'fill-opacity': 0.25, // Lower opacity (0.25) makes it more transparent
+            'fill-outline-color': 'rgba(255, 255, 255, 0.5)'
           }
-        });
+        }, 'mapillary-points'); // CRITICAL: This places counties BELOW the bubbles
 
-        // Add County Name Labels
+        // 2. ENSURE LINES ARE ON TOP
+        // If the lines are still hidden, we move them to the top of the stack
+        if (map.getLayer('mapillary-lines')) {
+            map.moveLayer('mapillary-lines'); 
+        }
+
+        // 3. ADD COUNTY NAME LABELS
         map.addLayer({
           id: 'county-labels',
           type: 'symbol',
@@ -109,27 +41,10 @@
           paint: {
             'text-color': '#ffffff',
             'text-halo-color': '#000000',
-            'text-halo-width': 2
+            'text-halo-width': 2,
+            'text-opacity': 0.8 // Slightly faded labels look more professional
           }
         });
 
-        // Auto-Zoom to Mississippi Counties
-        const bounds = new mapboxgl.LngLatBounds();
-        data.features.forEach(f => {
-          if (f.geometry && f.geometry.coordinates) {
-            f.geometry.coordinates[0].forEach(coord => bounds.extend(coord));
-          }
-        });
-        map.fitBounds(bounds, { padding: 40 });
+        // ... (Keep the existing Auto-Zoom bounds logic) ...
       });
-
-    map.on('click', 'mapillary-points', (e) => {
-      const imageId = e.features[0].properties.id;
-      document.getElementById('mly-frame').src = `https://www.mapillary.com/embed?image_key=${imageId}&style=photo&menu=false`;
-    });
-  });
-
-  map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
-</script>
-</body>
-</html>
