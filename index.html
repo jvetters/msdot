@@ -2,26 +2,29 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Mapillary - Native Click Style</title>
+<title>Mapillary Tracker - Stable 50/50</title>
 <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
 <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
 <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
 <style>
-  body { margin: 0; padding: 0; display: flex; height: 100vh; overflow: hidden; font-family: sans-serif; }
-  #mly-container { width: 50%; height: 100%; background: #000; border-right: 2px solid #35af6d; }
+  /* Flexbox ensures both halves are visible immediately */
+  body { margin: 0; padding: 0; display: flex; height: 100vh; width: 100vw; overflow: hidden; font-family: sans-serif; }
+  
+  #mly-container { width: 50%; height: 100%; background: #000; border-right: 2px solid #35af6d; box-sizing: border-box; }
   iframe { width: 100%; height: 100%; border: none; }
+
   #map-container { width: 50%; height: 100%; position: relative; }
   #map { width: 100%; height: 100%; }
+
   .controls {
     position: absolute; top: 10px; right: 10px; z-index: 10;
-    background: white; padding: 12px; border-radius: 8px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.3); width: 180px;
-    display: flex; flex-direction: column; gap: 8px;
+    background: white; padding: 10px; border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2); width: 160px;
+    display: flex; flex-direction: column; gap: 5px;
   }
-  .row { display: flex; flex-direction: column; gap: 2px; }
-  label { font-size: 10px; font-weight: bold; color: #666; text-transform: uppercase; }
-  input { padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px; }
-  button { padding: 8px; background: #35af6d; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+  label { font-size: 9px; font-weight: bold; color: #666; text-transform: uppercase; }
+  input { padding: 4px; border: 1px solid #ccc; border-radius: 4px; font-size: 11px; }
+  button { padding: 8px; background: #35af6d; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 5px; }
 </style>
 </head>
 <body>
@@ -32,15 +35,11 @@
 
 <div id="map-container">
   <div class="controls">
-    <div class="row">
-      <label>From Date</label>
-      <input type="date" id="date-from">
-    </div>
-    <div class="row">
-      <label>To Date</label>
-      <input type="date" id="date-to">
-    </div>
-    <button onclick="applyDateFilter()">Filter Map</button>
+    <label>From Date</label>
+    <input type="date" id="date-from">
+    <label>To Date</label>
+    <input type="date" id="date-to">
+    <button onclick="applyDateFilter()">Update Map</button>
   </div>
   <div id="map"></div>
 </div>
@@ -62,22 +61,22 @@
       tiles: [`https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${mlyToken}`]
     });
 
-    // Sequence Lines - Set to be clickable even at low zoom
+    // Native sequence lines
     map.addLayer({
       id: 'mapillary-lines',
       type: 'line',
       source: 'mapillary',
       'source-layer': 'sequence',
-      paint: { 'line-color': '#35af6d', 'line-width': 3, 'line-opacity': 0.6 }
+      paint: { 'line-color': '#35af6d', 'line-width': 2, 'line-opacity': 0.5 }
     });
 
-    // Image Points (Bubbles) - minzoom set to 0 for native visibility
+    // Native-style bubbles (visible at all zooms)
     map.addLayer({
       id: 'mapillary-points',
       type: 'circle',
       source: 'mapillary',
       'source-layer': 'image',
-      minzoom: 0, 
+      minzoom: 0, // Clickable at any level
       maxzoom: 24,
       paint: { 
         'circle-radius': ['interpolate', ['linear'], ['zoom'], 0, 1, 10, 2, 14, 5, 18, 10],
@@ -87,8 +86,13 @@
       }
     });
 
+    // Pointer cursor for better interactivity
     map.on('mouseenter', 'mapillary-points', () => { map.getCanvas().style.cursor = 'pointer'; });
     map.on('mouseleave', 'mapillary-points', () => { map.getCanvas().style.cursor = ''; });
   });
 
-  function applyDateFilter
+  function applyDateFilter() {
+    const fromVal = document.getElementById('date-from').value;
+    const toVal = document.getElementById('date-to').value;
+    const fromTs = fromVal ? new Date(fromVal).getTime() : 0;
+    const toTs = toVal ? new Date(to
