@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Vetted Analytics - Multi-Client Portal</title>
+<title>Vetted Analytics - Project Portal</title>
 <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
 <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
 <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
@@ -41,19 +41,9 @@
 </div>
 
 <script>
-  const urlParams = new URLSearchParams(window.location.search);
-  const projectID = urlParams.get('id'); // Loads the County JSON from /data
-  const pointsLayerID = urlParams.get('points'); // Loads the specific ArcGIS Layer
-
+  let projectID, pointsString;
   mapboxgl.accessToken = 'pk.eyJ1IjoianZldHRlcnMiLCJhIjoiY21sazFhdDg5MDV3dDNlcTI3aXlwejIwaSJ9.ecEavihruz0TZguVQvRiVg';
   const mlyToken = 'MLY|25724468457195152|d9c0ac6f4fbcd6ede3a3ba4e8332729b';
-
-  const map = new mapboxgl.Map({
-    container: 'map',
-    style: 'mapbox://styles/mapbox/light-v11',
-    zoom: 6,
-    center: [-89.3985, 32.3547]
-  });
 
   const stringToColour = (str) => {
     let hash = 0;
@@ -66,91 +56,125 @@
     return colour;
   }
 
-  map.on('load', () => {
-    map.addSource('mapillary', {
-      type: 'vector',
-      tiles: [`https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${mlyToken}`],
-      maxzoom: 17
-    });
-
-    // 1. DYNAMIC ARCGIS POINTS
-    if (pointsLayerID) {
-      const arcgisUrl = `https://services.arcgis.com/${pointsLayerID}/FeatureServer/0/query?where=1%3D1&outFields=*&f=geojson&outSR=4326`;
-      map.addSource('live-points', { type: 'geojson', data: arcgisUrl });
-      map.addLayer({
-        id: 'live-points-layer',
-        type: 'circle',
-        source: 'live-points',
-        paint: { 'circle-radius': 6, 'circle-color': '#e74c3c', 'circle-stroke-width': 2, 'circle-stroke-color': '#fff' }
-      });
+  // 1. CONFIGURATION LOADER
+  async function loadConfig() {
+    try {
+      // First, try to load a local config.json (for professional hosting)
+      const response = await fetch('./config.json');
+      if (response.ok) {
+        const config = await response.json();
+        projectID = config.projectID;
+        pointsString = config.points;
+      } else {
+        // If no config file, fall back to URL parameters (for GitHub testing)
+        const urlParams = new URLSearchParams(window.location.search);
+        projectID = urlParams.get('id');
+        pointsString = urlParams.get('points');
+      }
+    } catch (e) {
+      const urlParams = new URLSearchParams(window.location.search);
+      projectID = urlParams.get('id');
+      pointsString = urlParams.get('points');
     }
-
-    // 2. DYNAMIC COUNTY JSON
-    if (projectID) {
-      fetch(`./data/${projectID}.json`)
-        .then(res => res.json())
-        .then(data => {
-          data.features.forEach(f => f.properties.dynamicColor = stringToColour(f.properties.Name || "default"));
-          map.addSource('client-data', { type: 'geojson', data: data });
-
-          map.addLayer({
-            id: 'county-fills',
-            type: 'fill',
-            source: 'client-data',
-            paint: { 'fill-color': ['get', 'dynamicColor'], 'fill-opacity': 0.15, 'fill-outline-color': 'rgba(0,0,0,0.1)' }
-          }, pointsLayerID ? 'live-points-layer' : undefined);
-
-          map.addLayer({
-            id: 'mapillary-lines',
-            type: 'line',
-            source: 'mapillary',
-            'source-layer': 'sequence',
-            paint: { 'line-color': '#35af6d', 'line-width': 2, 'line-opacity': 0.7 }
-          }, pointsLayerID ? 'live-points-layer' : undefined);
-
-          map.addLayer({
-            id: 'mapillary-points',
-            type: 'circle',
-            source: 'mapillary',
-            'source-layer': 'image',
-            paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 1.5, 17, 8], 'circle-color': '#35af6d', 'circle-stroke-width': 1, 'circle-stroke-color': '#fff' }
-          });
-
-          map.addLayer({
-            id: 'county-labels',
-            type: 'symbol',
-            source: 'client-data',
-            layout: { 'text-field': ['get', 'Name'], 'text-size': 11, 'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'] },
-            paint: { 'text-color': '#333', 'text-halo-color': '#fff', 'text-halo-width': 1.5 }
-          });
-
-          const bounds = new mapboxgl.LngLatBounds();
-          data.features.forEach(f => {
-            if (f.geometry && f.geometry.coordinates) {
-              const coords = f.geometry.type === 'Polygon' ? f.geometry.coordinates[0] : f.geometry.coordinates;
-              coords.forEach(c => bounds.extend(Array.isArray(c[0]) ? c[0] : c));
-            }
-          });
-          map.fitBounds(bounds, { padding: 40 });
-        });
-    }
-  });
-
-  function applyDateFilter() {
-    const fromTs = document.getElementById('date-from').value ? new Date(document.getElementById('date-from').value).getTime() : 0;
-    const toTs = document.getElementById('date-to').value ? new Date(document.getElementById('date-to').value).getTime() : Date.now();
-    const filter = ['all', ['>=', ['get', 'captured_at'], fromTs], ['<=', ['get', 'captured_at'], toTs]];
-    if (map.getLayer('mapillary-lines')) map.setFilter('mapillary-lines', filter);
-    if (map.getLayer('mapillary-points')) map.setFilter('mapillary-points', filter);
+    initMap();
   }
 
-  map.on('click', 'mapillary-points', (e) => {
-    document.getElementById('mly-frame').src = `https://www.mapillary.com/embed?image_key=${e.features[0].properties.id}&style=photo&menu=false`;
-  });
+  function initMap() {
+    const map = new mapboxgl.Map({
+      container: 'map',
+      style: 'mapbox://styles/mapbox/light-v11',
+      zoom: 6,
+      center: [-89.3985, 32.3547]
+    });
 
-  map.on('mouseenter', 'mapillary-points', () => { map.getCanvas().style.cursor = 'pointer'; });
-  map.on('mouseleave', 'mapillary-points', () => { map.getCanvas().style.cursor = ''; });
-  map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
+    map.on('load', () => {
+      map.addSource('mapillary', {
+        type: 'vector',
+        tiles: [`https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${mlyToken}`],
+        maxzoom: 17
+      });
+
+      // Load ArcGIS Points
+      if (pointsString) {
+        pointsString.split(',').forEach((layerID, index) => {
+          const arcgisUrl = `https://services.arcgis.com/${layerID}/FeatureServer/0/query?where=1%3D1&outFields=*&f=geojson&outSR=4326`;
+          map.addSource(`points-${index}`, { type: 'geojson', data: arcgisUrl });
+          map.addLayer({
+            id: `pt-layer-${index}`,
+            type: 'circle',
+            source: `points-${index}`,
+            paint: { 'circle-radius': 6, 'circle-color': stringToColour(layerID), 'circle-stroke-width': 2, 'circle-stroke-color': '#fff' }
+          });
+        });
+      }
+
+      // Load County Polygons
+      if (projectID) {
+        fetch(`https://jvetters.github.io/Mapillary_Webview/data/${projectID}.json`)
+          .then(res => res.json())
+          .then(data => {
+            data.features.forEach(f => f.properties.dynamicColor = stringToColour(f.properties.Name || "default"));
+            map.addSource('client-data', { type: 'geojson', data: data });
+
+            map.addLayer({
+              id: 'county-fills',
+              type: 'fill',
+              source: 'client-data',
+              paint: { 'fill-color': ['get', 'dynamicColor'], 'fill-opacity': 0.15, 'fill-outline-color': 'rgba(0,0,0,0.1)' }
+            });
+
+            map.addLayer({
+              id: 'mapillary-lines',
+              type: 'line',
+              source: 'mapillary',
+              'source-layer': 'sequence',
+              paint: { 'line-color': '#35af6d', 'line-width': 2, 'line-opacity': 0.7 }
+            });
+
+            map.addLayer({
+              id: 'mapillary-points',
+              type: 'circle',
+              source: 'mapillary',
+              'source-layer': 'image',
+              paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 1.5, 17, 8], 'circle-color': '#35af6d', 'circle-stroke-width': 1, 'circle-stroke-color': '#fff' }
+            });
+
+            map.addLayer({
+              id: 'county-labels',
+              type: 'symbol',
+              source: 'client-data',
+              layout: { 'text-field': ['get', 'Name'], 'text-size': 11, 'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'] },
+              paint: { 'text-color': '#333', 'text-halo-color': '#fff', 'text-halo-width': 1.5 }
+            });
+
+            const bounds = new mapboxgl.LngLatBounds();
+            data.features.forEach(f => {
+              if (f.geometry && f.geometry.coordinates) {
+                const coords = f.geometry.type === 'Polygon' ? f.geometry.coordinates[0] : f.geometry.coordinates;
+                coords.forEach(c => bounds.extend(Array.isArray(c[0]) ? c[0] : c));
+              }
+            });
+            map.fitBounds(bounds, { padding: 40 });
+          });
+      }
+    });
+
+    // Date Filter Logic
+    window.applyDateFilter = function() {
+      const fromTs = document.getElementById('date-from').value ? new Date(document.getElementById('date-from').value).getTime() : 0;
+      const toTs = document.getElementById('date-to').value ? new Date(document.getElementById('date-to').value).getTime() : Date.now();
+      const filter = ['all', ['>=', ['get', 'captured_at'], fromTs], ['<=', ['get', 'captured_at'], toTs]];
+      if (map.getLayer('mapillary-lines')) map.setFilter('mapillary-lines', filter);
+      if (map.getLayer('mapillary-points')) map.setFilter('mapillary-points', filter);
+    }
+
+    map.on('click', 'mapillary-points', (e) => {
+      document.getElementById('mly-frame').src = `https://www.mapillary.com/embed?image_key=${e.features[0].properties.id}&style=photo&menu=false`;
+    });
+    map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
+  }
+
+  loadConfig();
 </script>
 </body>
 </html>
