@@ -7,27 +7,41 @@
 <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
 <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
 <style>
-  body { margin: 0; padding: 0; font-family: sans-serif; background: #f4f4f4; overflow: hidden; }
+  body { margin: 0; padding: 0; font-family: 'Helvetica Neue', Arial, sans-serif; background: #f4f4f4; overflow: hidden; }
   #mly-container { position: absolute; top: 0; bottom: 0; left: 0; width: 50%; background: #000; border-right: 2px solid #35af6d; }
   #map-container { position: absolute; top: 0; bottom: 0; right: 0; width: 50%; }
   #map { width: 100%; height: 100%; }
   iframe { width: 100%; height: 100%; border: none; }
-  .controls { position: absolute; top: 15px; right: 15px; z-index: 10; background: white; padding: 12px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 180px; display: flex; flex-direction: column; gap: 8px; }
+  .controls {
+    position: absolute; top: 15px; right: 15px; z-index: 10;
+    background: white; padding: 12px; border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 180px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  label { font-size: 10px; font-weight: bold; color: #666; text-transform: uppercase; }
+  input { padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px; }
   button { padding: 10px; background: #35af6d; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
 </style>
 </head>
 <body>
 
-<div id="mly-container"><iframe id="mly-frame" src="https://www.mapillary.com/embed?style=photo&menu=false"></iframe></div>
+<div id="mly-container">
+  <iframe id="mly-frame" src="https://www.mapillary.com/embed?style=photo&menu=false"></iframe>
+</div>
+
 <div id="map-container">
   <div class="controls">
+    <label>From Date</label>
+    <input type="date" id="date-from">
+    <label>To Date</label>
+    <input type="date" id="date-to">
     <button onclick="applyDateFilter()">Filter Road Runs</button>
   </div>
   <div id="map"></div>
 </div>
 
 <script>
-  // Fixed pathing for your MSDOT folder structure
+  // MSDOT Project Parameters
   const projectID = "Mississippi_Counties"; 
   const pointsURL = "https://services7.arcgis.com/26dfc2b86e7494bb2265b06c906666d0/arcgis/rest/services/Debris_Points_view/FeatureServer/0/query?where=1%3D1&outFields=*&outSR=4326&f=geojson";
 
@@ -41,15 +55,27 @@
     center: [-89.3985, 32.3547]
   });
 
+  // Random color generator for counties
+  const stringToColour = (str) => {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) { hash = str.charCodeAt(i) + ((hash << 5) - hash); }
+    let colour = '#';
+    for (let i = 0; i < 3; i++) {
+      let value = (hash >> (i * 8)) & 0xFF;
+      colour += ('00' + value.toString(16)).substr(-2);
+    }
+    return colour;
+  }
+
   map.on('load', () => {
-    // 1. Mapillary Layer
+    // 1. ADD MAPILLARY SOURCE
     map.addSource('mapillary', {
       type: 'vector',
       tiles: [`https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${mlyToken}`],
       maxzoom: 17
     });
 
-    // 2. Live ArcGIS Points Layer
+    // 2. ADD ARCGIS LIVE POINTS
     map.addSource('live-points', { type: 'geojson', data: pointsURL });
     map.addLayer({
       id: 'live-points-layer',
@@ -57,42 +83,28 @@
       source: 'live-points',
       paint: {
         'circle-radius': 7,
-        'circle-color': '#e74c3c', // Red points for debris
+        'circle-color': '#e74c3c',
         'circle-stroke-width': 2,
         'circle-stroke-color': '#fff'
       }
     });
 
-    // 3. County Polygons - Corrected Folder Path
+    // 3. LOAD MSDOT COUNTY DATA
     fetch(`./MSDOT/${projectID}.json`)
       .then(res => res.json())
       .then(data => {
+        // Assign dynamic colors
+        data.features.forEach(f => f.properties.dynamicColor = stringToColour(f.properties.Name || "default"));
+        
         map.addSource('client-data', { type: 'geojson', data: data });
+
         map.addLayer({
           id: 'county-fills',
           type: 'fill',
           source: 'client-data',
-          paint: { 'fill-color': '#35af6d', 'fill-opacity': 0.1, 'fill-outline-color': '#000' }
-        }, 'live-points-layer'); // Ensures points stay on top
-
-        // Auto-zoom to the counties
-        const bounds = new mapboxgl.LngLatBounds();
-        data.features.forEach(f => {
-          if (f.geometry && f.geometry.coordinates) {
-            const coords = f.geometry.type === 'Polygon' ? f.geometry.coordinates[0] : f.geometry.coordinates;
-            coords.forEach(c => bounds.extend(Array.isArray(c[0]) ? c[0] : c));
+          paint: {
+            'fill-color': ['get', 'dynamicColor'],
+            'fill-opacity': 0.15,
+            'fill-outline-color': 'rgba(0,0,0,0.1)'
           }
-        });
-        map.fitBounds(bounds, { padding: 40 });
-      })
-      .catch(err => console.error("Error finding MSDOT data:", err));
-  });
-
-  function applyDateFilter() {
-    console.log("Date filter triggered");
-  }
-
-  map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
-</script>
-</body>
-</html>
+        }, 'live
