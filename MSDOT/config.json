@@ -1,0 +1,4 @@
+{
+  "projectID": "Mississippi_Counties",
+  "points": "https://services7.arcgis.com/26dfc2b86e7494bb2265b06c906666d0/arcgis/rest/services/Debris_Points_view/FeatureServer/0/query?where=1%3D1&outFields=*&outSR=4326&f=geojson"
+}
