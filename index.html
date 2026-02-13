@@ -38,7 +38,7 @@
   });
 
   map.on('load', () => {
-    // 1. RESTORE MAPILLARY BUBBLES AND LINES
+    // 1. ADD MAPILLARY DATA (Lines and Bubbles)
     map.addSource('mapillary', {
       type: 'vector',
       tiles: [`https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${mlyToken}`],
@@ -66,25 +66,7 @@
       }
     });
 
-    // 2. RESTORE DEBRIS POINTS
-    map.addSource('debris-points', {
-      type: 'geojson',
-      data: './MSDOT/Debris_Points.json'
-    });
-
-    map.addLayer({
-      id: 'debris-layer',
-      type: 'circle',
-      source: 'debris-points',
-      paint: {
-        'circle-radius': 8,
-        'circle-color': '#e74c3c', 
-        'circle-stroke-width': 2,
-        'circle-stroke-color': '#fff'
-      }
-    });
-
-    // 3. RESTORE COUNTIES
+    // 2. ADD MSDOT COUNTY POLYGONS
     fetch('./MSDOT/Mississippi_Counties.json')
       .then(res => res.json())
       .then(data => {
@@ -93,8 +75,12 @@
           id: 'county-fills',
           type: 'fill',
           source: 'counties',
-          paint: { 'fill-color': '#35af6d', 'fill-opacity': 0.1, 'fill-outline-color': '#000' }
-        }, 'mapillary-lines'); 
+          paint: { 
+            'fill-color': '#35af6d', 
+            'fill-opacity': 0.1, 
+            'fill-outline-color': '#000' 
+          }
+        }, 'mapillary-lines'); // Polygons sit behind Mapillary lines
 
         // Auto-zoom to counties
         const bounds = new mapboxgl.LngLatBounds();
