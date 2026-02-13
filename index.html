@@ -27,8 +27,9 @@
 </div>
 
 <script>
-  // Ensure this matches your GitHub folder name EXACTLY
-  const clientID = 'MSDOT'; 
+  // Detect folder from URL - defaults to MSDOT
+  const urlParams = new URLSearchParams(window.location.search);
+  const clientID = urlParams.get('id') || 'MSDOT'; 
   
   mapboxgl.accessToken = 'pk.eyJ1IjoianZldHRlcnMiLCJhIjoiY21sazFhdDg5MDV3dDNlcTI3aXlwejIwaSJ9.ecEavihruz0TZguVQvRiVg';
   const mlyToken = 'MLY|25724468457195152|d9c0ac6f4fbcd6ede3a3ba4e8332729b';
@@ -41,14 +42,14 @@
   });
 
   map.on('load', () => {
-    // 1. ADD MAPILLARY
+    // 1. ADD MAPILLARY DATA
     map.addSource('mapillary', {
       type: 'vector',
       tiles: [`https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${mlyToken}`],
       maxzoom: 17
     });
 
-    // Road Runs (Lines)
+    // Road Lines
     map.addLayer({
       id: 'mapillary-lines',
       type: 'line',
@@ -57,7 +58,7 @@
       paint: { 'line-color': '#35af6d', 'line-width': 2, 'line-opacity': 0.7 }
     });
 
-    // Bubbles (Points) - THESE ARE THE CLICKABLE DOTS
+    // CLICKABLE BUBBLES (Mandatory Source Layer: "image")
     map.addLayer({
       id: 'mapillary-points',
       type: 'circle',
@@ -71,7 +72,7 @@
       }
     });
 
-    // 2. ADD DEBRIS POINTS
+    // 2. ADD LOCAL DEBRIS POINTS (From MSDOT folder)
     map.addSource('debris-points', {
       type: 'geojson',
       data: `./${clientID}/Debris_Points.json`
@@ -83,13 +84,13 @@
       source: 'debris-points',
       paint: {
         'circle-radius': 8,
-        'circle-color': '#e74c3c', // Bright Red
+        'circle-color': '#e74c3c', // Red points
         'circle-stroke-width': 2,
         'circle-stroke-color': '#fff'
       }
     });
 
-    // 3. ADD COUNTIES
+    // 3. ADD COUNTY POLYGONS
     fetch(`./${clientID}/Mississippi_Counties.json`)
       .then(res => res.json())
       .then(data => {
@@ -98,10 +99,10 @@
           id: 'county-fills',
           type: 'fill',
           source: 'counties',
-          paint: { 'fill-color': '#35af6d', 'fill-opacity': 0.1, 'fill-outline-color': '#000' }
-        }, 'mapillary-lines'); // Ensure polygons are behind lines
+          paint: { 'fill-color': '#888', 'fill-opacity': 0.1, 'fill-outline-color': '#000' }
+        }, 'mapillary-lines'); // Keep polygons behind lines
 
-        // Auto-zoom to counties
+        // Zoom to data
         const bounds = new mapboxgl.LngLatBounds();
         data.features.forEach(f => {
           if (f.geometry && f.geometry.coordinates) {
@@ -113,7 +114,7 @@
       });
   });
 
-  // CLICK BUBBLE INTERACTIVITY
+  // BUBBLE INTERACTIVITY
   map.on('click', 'mapillary-points', (e) => {
     const imgID = e.features[0].properties.id;
     document.getElementById('mly-frame').src = `https://www.mapillary.com/embed?image_key=${imgID}&style=photo&menu=false`;
