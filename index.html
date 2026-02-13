@@ -28,7 +28,7 @@
   button { padding: 10px; background: #35af6d; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
   button:hover { background: #2d965d; }
   
-  /* Download button styling */
+  /* Download button specifically for high-res flat images */
   #download-btn { background: #2c3e50; margin-top: 5px; }
   #download-btn:hover { background: #1a252f; }
 
@@ -36,7 +36,7 @@
   .legend-item { display: flex; align-items: center; font-size: 11px; color: #444; font-weight: bold; }
   .legend-key { width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; border: 1px solid #fff; }
 
-  /* Geocoder width for top-left placement */
+  /* Positioning the Search Bar on the divider edge */
   .mapboxgl-ctrl-geocoder { min-width: 250px; border: 1px solid #35af6d; }
 </style>
 </head>
@@ -51,9 +51,7 @@
     <label>From Date</label><input type="date" id="date-from" value="2026-02-03">
     <label>To Date</label><input type="date" id="date-to">
     <button onclick="applyDateFilter()">Filter Road Runs</button>
-    
     <button id="download-btn" onclick="downloadCurrentImage()">Download High-Res</button>
-    
     <hr style="border:0; border-top:1px solid #eee; margin: 4px 0;">
     <label>Debris Type Filter</label>
     <select id="debris-type-selector" onchange="applyDebrisFilter()">
@@ -89,7 +87,7 @@
     maxZoom: 22
   });
 
-  // Search Bar (Global US + Coordinates)
+  // Global Search Configuration
   const geocoder = new MapboxGeocoder({
       accessToken: mapboxgl.accessToken,
       mapboxgl: mapboxgl,
@@ -109,6 +107,7 @@
   }
 
   map.on('load', () => {
+    // 1. Mapillary Vector Tile Sources
     map.addSource('mapillary', {
       type: 'vector',
       tiles: [`https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${mlyToken}`],
@@ -137,6 +136,30 @@
       }
     });
 
+    // 2. Mississippi County Boundaries and Dynamic Coloring
+    fetch('./MSDOT/Mississippi_Counties.json')
+      .then(res => res.json())
+      .then(data => {
+        data.features.forEach(f => f.properties.dynamicColor = stringToColour(f.properties.Name || "default"));
+        map.addSource('counties', { type: 'geojson', data: data });
+        map.addLayer({
+          id: 'county-fills',
+          type: 'fill',
+          source: 'counties',
+          paint: { 'fill-color': ['get', 'dynamicColor'], 'fill-opacity': 0.15, 'fill-outline-color': '#000' }
+        }, 'mapillary-lines');
+
+        const bounds = new mapboxgl.LngLatBounds();
+        data.features.forEach(f => {
+          if (f.geometry && f.geometry.coordinates) {
+            const coords = f.geometry.type === 'Polygon' ? f.geometry.coordinates[0] : f.geometry.coordinates;
+            coords.forEach(c => bounds.extend(Array.isArray(c[0]) ? c[0] : c));
+          }
+        });
+        map.fitBounds(bounds, { padding: 40 });
+      });
+
+    // 3. Debris Points with Geometry Parsing
     fetch('./MSDOT/Debris_Points.json')
       .then(res => res.json())
       .then(pointData => {
@@ -161,53 +184,74 @@
           }
         });
       });
+
+    // Ensure initial filters are applied
+    applyDateFilter();
   });
 
+  // Click interaction for Mapillary Points
   map.on('click', 'mapillary-points', (e) => {
     currentImageKey = e.features[0].properties.id;
     document.getElementById('mly-frame').src = `https://www.mapillary.com/embed?image_key=${currentImageKey}&style=photo&menu=false`;
   });
 
-  // Function to download the flat high-res image
-  function downloadCurrentImage() {
+  // Click interaction for Debris Points
+  map.on('click', 'debris-layer', (e) => {
+    const props = e.features[0].properties;
+    new mapboxgl.Popup()
+      .setLngLat(e.lngLat)
+      .setHTML(`<strong>Debris Type:</strong> ${props['Debris Type']}<br><strong>ID:</strong> ${props.id || 'N/A'}`)
+      .addTo(map);
+  });
+
+  // High-Res Image Download via Mapillary API
+  async function downloadCurrentImage() {
     if (!currentImageKey) {
       alert("Please select a point on the map first.");
       return;
     }
-
-    fetch(`https://graph.mapillary.com/${currentImageKey}?fields=thumb_2048_url&access_token=${mlyToken}`)
-      .then(response => response.json())
-      .then(data => {
-        const imageUrl = data.thumb_2048_url;
-        if (imageUrl) {
-          const link = document.createElement('a');
-          link.href = imageUrl;
-          link.download = `Mapillary_Flat_${currentImageKey}.jpg`;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-        } else {
-          alert("High-res flat image not available.");
-        }
-      })
-      .catch(err => console.error("Error fetching image:", err));
+    try {
+      const response = await fetch(`https://graph.mapillary.com/${currentImageKey}?fields=thumb_2048_url&access_token=${mlyToken}`);
+      const data = await response.json();
+      const imageUrl = data.thumb_2048_url;
+      if (imageUrl) {
+        const imageResponse = await fetch(imageUrl);
+        const imageBlob = await imageResponse.blob();
+        const downloadUrl = window.URL.createObjectURL(imageBlob);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = `Mapillary_Flat_${currentImageKey}.jpg`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(downloadUrl);
+      }
+    } catch (err) { console.error("Download failed:", err); }
   }
 
+  // Time-based filtering for Mapillary sequences
   function applyDateFilter() {
-    const fromTs = document.getElementById('date-from').value ? new Date(document.getElementById('date-from').value).getTime() : 0;
-    const toTs = document.getElementById('date-to').value ? new Date(document.getElementById('date-to').value).getTime() : Date.now();
+    const fromVal = document.getElementById('date-from').value;
+    const toVal = document.getElementById('date-to').value;
+    const fromTs = fromVal ? new Date(fromVal).getTime() : 0;
+    const toTs = toVal ? new Date(toVal).getTime() : Date.now();
     const filter = ['all', ['>=', ['get', 'captured_at'], fromTs], ['<=', ['get', 'captured_at'], toTs]];
     if (map.getLayer('mapillary-lines')) map.setFilter('mapillary-lines', filter);
     if (map.getLayer('mapillary-points')) map.setFilter('mapillary-points', filter);
   }
 
+  // Symbology filtering for debris types
   function applyDebrisFilter() {
     const selectedType = document.getElementById('debris-type-selector').value;
     map.setFilter('debris-layer', selectedType === 'All' ? null : ['==', ['get', 'Debris Type'], selectedType]);
   }
 
+  // Cursor handling for interactivity
   map.on('mouseenter', 'mapillary-points', () => { map.getCanvas().style.cursor = 'pointer'; });
   map.on('mouseleave', 'mapillary-points', () => { map.getCanvas().style.cursor = ''; });
+  map.on('mouseenter', 'debris-layer', () => { map.getCanvas().style.cursor = 'pointer'; });
+  map.on('mouseleave', 'debris-layer', () => { map.getCanvas().style.cursor = ''; });
+
   map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
 </script>
 </body>
