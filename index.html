@@ -71,7 +71,7 @@
     style: 'mapbox://styles/mapbox/light-v11',
     zoom: 6,
     center: [-89.3985, 32.3547],
-    maxZoom: 22 // Extended maximum zoom for the map itself
+    maxZoom: 22
   });
 
   const stringToColour = (str) => {
@@ -83,12 +83,12 @@
   }
 
   map.on('load', () => {
-    // 1. Mapillary (Decoupled & Over-zoomed)
+    // 1. Mapillary (Low Zoom Visibility Enabled)
     map.addSource('mapillary', {
       type: 'vector',
       tiles: [`https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${mlyToken}`],
-      minzoom: 0,
-      maxzoom: 24 // Increased maxzoom to prevent disappearing when zooming in close
+      minzoom: 0, // Allow rendering at the furthest zoom
+      maxzoom: 24
     });
 
     map.addLayer({
@@ -96,7 +96,7 @@
       type: 'line',
       source: 'mapillary',
       'source-layer': 'sequence',
-      paint: { 'line-color': '#35af6d', 'line-width': 2, 'line-opacity': 0.7 }
+      paint: { 'line-color': '#35af6d', 'line-width': 1.5, 'line-opacity': 0.6 }
     });
 
     map.addLayer({
@@ -105,13 +105,12 @@
       source: 'mapillary',
       'source-layer': 'image',
       paint: { 
-        // Aggressive interpolation stops to keep bubbles visible at all levels
         'circle-radius': [
           'interpolate', ['linear'], ['zoom'], 
-          0, 0.5,    // Faintly visible when zoomed out fully
-          10, 2,     // Standard size
+          4, 1,      // Starts appearing at zoom 4 (Region level)
+          10, 2.5,   // Standard size at county level
           14, 6,     // Larger at street level
-          22, 15     // Very large when over-zoomed
+          22, 18     // Huge for over-zoom
         ],
         'circle-color': '#35af6d', 
         'circle-stroke-width': 1, 
