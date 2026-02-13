@@ -29,11 +29,15 @@
   button:hover { background: #2d965d; }
   
   #download-btn { background: #2c3e50; margin-top: 5px; }
-  #download-btn:hover { background: #1a252f; }
+  
+  /* Zoom Button Styling */
+  .zoom-controls { display: flex; gap: 5px; margin-top: 5px; }
+  .zoom-btn { flex: 1; background: #34495e; padding: 8px; font-size: 14px; }
+  .zoom-btn:hover { background: #2c3e50; }
 
   .legend-container { margin-top: 5px; display: flex; flex-direction: column; gap: 4px; }
   .legend-item { display: flex; align-items: center; font-size: 11px; color: #444; font-weight: bold; }
-  .legend-key { width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; border: 1px solid #fff; }
+  .legend-key { width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; border: 1 solid #fff; }
 
   .mapboxgl-ctrl-geocoder { min-width: 250px; border: 1px solid #35af6d; }
 </style>
@@ -41,7 +45,7 @@
 <body>
 
 <div id="mly-container">
-  <iframe id="mly-frame" src="https://www.mapillary.com/embed?style=photo&menu=false&scroll_zoom=true"></iframe>
+  <iframe id="mly-frame" src="https://www.mapillary.com/embed?style=photo&menu=false&publish=true"></iframe>
 </div>
 
 <div id="map-container">
@@ -49,6 +53,12 @@
     <label>From Date</label><input type="date" id="date-from" value="2026-02-03">
     <label>To Date</label><input type="date" id="date-to">
     <button onclick="applyDateFilter()">Filter Road Runs</button>
+    
+    <div class="zoom-controls">
+      <button class="zoom-btn" onclick="zoomMapillary(0.2)">+</button>
+      <button class="zoom-btn" onclick="zoomMapillary(-0.2)">-</button>
+    </div>
+    
     <button id="download-btn" onclick="downloadImage()">Download Image</button>
     <hr style="border:0; border-top:1px solid #eee; margin: 4px 0;">
     <label>Debris Type Filter</label>
@@ -76,6 +86,7 @@
   mapboxgl.accessToken = 'pk.eyJ1IjoianZldHRlcnMiLCJhIjoiY21sazFhdDg5MDV3dDNlcTI3aXlwejIwaSJ9.ecEavihruz0TZguVQvRiVg';
   const mlyToken = 'MLY|25724468457195152|d9c0ac6f4fbcd6ede3a3ba4e8332729b';
   let currentImageKey = null;
+  let currentZoom = 1.0; // Track zoom level locally
 
   const map = new mapboxgl.Map({
     container: 'map',
@@ -87,7 +98,7 @@
 
   const coordinatesGeocoder = function (query) {
     const matches = query.match(/^[ ]*(?:Lat: )?(-?\d+\.?\d*)[, ]+(?:Lng: )?(-?\d+\.?\d*)[ ]*$/i);
-    if (!matches) { return null; }
+    if (!matches) return null;
     function coordinateFeature(lng, lat) {
       return {
         center: [lng, lat],
@@ -101,8 +112,8 @@
     const coord1 = Number(matches[1]);
     const coord2 = Number(matches[2]);
     const geocodes = [];
-    if (coord1 < 90 && coord1 > -90 && coord2 < 180 && coord2 > -180) { geocodes.push(coordinateFeature(coord2, coord1)); }
-    if (coord2 < 90 && coord2 > -90 && coord1 < 180 && coord1 > -180) { geocodes.push(coordinateFeature(coord1, coord2)); }
+    if (coord1 < 90 && coord1 > -90 && coord2 < 180 && coord2 > -180) geocodes.push(coordinateFeature(coord2, coord1));
+    if (coord2 < 90 && coord2 > -90 && coord1 < 180 && coord1 > -180) geocodes.push(coordinateFeature(coord1, coord2));
     return geocodes.length === 0 ? null : geocodes;
   };
 
@@ -130,17 +141,13 @@
     map.addSource('mapillary', {
       type: 'vector',
       tiles: [`https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${mlyToken}`],
-      minzoom: 0,
-      maxzoom: 24,
-      promoteId: 'id'
+      minzoom: 0, maxzoom: 24, promoteId: 'id'
     });
 
     map.addLayer({ id: 'mapillary-lines', type: 'line', source: 'mapillary', 'source-layer': 'sequence', paint: { 'line-color': '#35af6d', 'line-width': 1.5, 'line-opacity': 0.6 } });
     map.addLayer({ id: 'mapillary-points', type: 'circle', source: 'mapillary', 'source-layer': 'image', paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 1, 10, 2.5, 14, 6, 22, 18], 'circle-color': ['case', ['boolean', ['feature-state', 'selected'], false], '#ff9f43', '#35af6d'], 'circle-stroke-width': ['case', ['boolean', ['feature-state', 'selected'], false], 3, 1], 'circle-stroke-color': '#fff' } });
 
-    fetch('./MSDOT/Mississippi_Counties.json')
-      .then(res => res.json())
-      .then(data => {
+    fetch('./MSDOT/Mississippi_Counties.json').then(res => res.json()).then(data => {
         data.features.forEach(f => { f.properties.dynamicColor = stringToColour(f.properties.Name || "default"); });
         map.addSource('counties', { type: 'geojson', data: data });
         map.addLayer({ id: 'county-fills', type: 'fill', source: 'counties', paint: { 'fill-color': ['get', 'dynamicColor'], 'fill-opacity': 0.15, 'fill-outline-color': '#000' } }, 'mapillary-lines');
@@ -152,39 +159,37 @@
           }
         });
         map.fitBounds(bounds, { padding: 40 });
-      });
+    });
 
-    fetch('./MSDOT/Debris_Points.json')
-      .then(res => res.json())
-      .then(pointData => {
-        pointData.features.forEach(f => {
-          if (f.properties.Longitude && f.properties.Latitude) {
-            f.geometry = { type: 'Point', coordinates: [parseFloat(f.properties.Longitude), parseFloat(f.properties.Latitude)] };
-          }
-        });
+    fetch('./MSDOT/Debris_Points.json').then(res => res.json()).then(pointData => {
+        pointData.features.forEach(f => { if (f.properties.Longitude && f.properties.Latitude) f.geometry = { type: 'Point', coordinates: [parseFloat(f.properties.Longitude), parseFloat(f.properties.Latitude)] }; });
         map.addSource('debris-points', { type: 'geojson', data: pointData });
         map.addLayer({ id: 'debris-layer', type: 'circle', source: 'debris-points', paint: { 'circle-radius': 7, 'circle-stroke-width': 2, 'circle-stroke-color': '#fff', 'circle-color': ['match', ['get', 'Debris Type'], 'Hanger', '#f1c40f', 'Leaner', '#e67e22', 'VEG', '#2ecc71', 'C&D', '#9b59b6', '#e74c3c'] } });
-      });
-
+    });
     applyDateFilter();
   });
 
-  let selectedPointId = null;
+  // ZOOM LOGIC: Sends a FOV change message to Mapillary
+  function zoomMapillary(delta) {
+    currentZoom = Math.min(Math.max(currentZoom + delta, 0.5), 3.0);
+    const frame = document.getElementById('mly-frame');
+    frame.contentWindow.postMessage(JSON.stringify({type: 'mly.zoom', value: currentZoom}), 'https://www.mapillary.com');
+  }
 
+  let selectedPointId = null;
   map.on('click', 'mapillary-points', (e) => {
     const feature = e.features[0];
     currentImageKey = feature.properties.id;
-    if (selectedPointId !== null) { map.setFeatureState({ source: 'mapillary', sourceLayer: 'image', id: selectedPointId }, { selected: false }); }
+    if (selectedPointId !== null) map.setFeatureState({ source: 'mapillary', sourceLayer: 'image', id: selectedPointId }, { selected: false });
     selectedPointId = feature.id;
     map.setFeatureState({ source: 'mapillary', sourceLayer: 'image', id: selectedPointId }, { selected: true });
-    
-    // Kept scroll_zoom=true here for image rotation clicks
-    document.getElementById('mly-frame').src = `https://www.mapillary.com/embed?image_key=${currentImageKey}&style=photo&menu=false&scroll_zoom=true`;
+    currentZoom = 1.0; // Reset zoom on new image
+    document.getElementById('mly-frame').src = `https://www.mapillary.com/embed?image_key=${currentImageKey}&style=photo&menu=false&publish=true`;
   });
 
   map.on('click', 'debris-layer', (e) => {
     const props = e.features[0].properties;
-    new mapboxgl.Popup().setLngLat(e.lngLat).setHTML(`<strong>Type:</strong> ${props['Debris Type']}<br><strong>Lat:</strong> ${props.Latitude}<br><strong>Long:</strong> ${props.Longitude}`).addTo(map);
+    new mapboxgl.Popup().setLngLat(e.lngLat).setHTML(`<strong>Type:</strong> ${props['Debris Type']}<br>Lat: ${props.Latitude}<br>Long: ${props.Longitude}`).addTo(map);
   });
 
   function applyDateFilter() {
@@ -209,16 +214,16 @@
       const data = await res.json();
       const imageUrl = data.thumb_2048_url;
       if (imageUrl) {
-        const imageResponse = await fetch(imageUrl);
-        const blob = await imageResponse.blob();
-        const downloadUrl = window.URL.createObjectURL(blob);
+        const imageRes = await fetch(imageUrl);
+        const blob = await imageRes.blob();
+        const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = downloadUrl;
+        a.href = url;
         a.download = `Debris_View_${currentImageKey}.jpg`;
         document.body.appendChild(a);
         a.click();
         a.remove();
-        window.URL.revokeObjectURL(downloadUrl);
+        window.URL.revokeObjectURL(url);
       }
     } catch (err) { alert("Download security block. Right-click image in viewer to save."); }
   }
