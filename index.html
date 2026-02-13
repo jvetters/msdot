@@ -17,7 +17,7 @@
   #map { width: 100%; height: 100%; }
   iframe { width: 100%; height: 100%; border: none; }
 
-  /* Controls moved back to top-right now that search is top-left */
+  /* Controls panel in the top-right */
   .controls {
     position: absolute; top: 15px; right: 15px; z-index: 10;
     background: white; padding: 12px; border-radius: 8px;
@@ -33,7 +33,7 @@
   .legend-item { display: flex; align-items: center; font-size: 11px; color: #444; font-weight: bold; }
   .legend-key { width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; border: 1px solid #fff; }
 
-  /* Geocoder width adjustment for top-left placement */
+  /* Geocoder width and border styling for the divider edge */
   .mapboxgl-ctrl-geocoder { min-width: 250px; border: 1px solid #35af6d; }
 </style>
 </head>
@@ -82,14 +82,12 @@
     maxZoom: 22
   });
 
-  // MS-Prioritized Search Bar placed at TOP-LEFT (divider edge)
+  // BROADENED SEARCH BAR (Global US + Coordinates)
   const geocoder = new MapboxGeocoder({
       accessToken: mapboxgl.accessToken,
       mapboxgl: mapboxgl,
-      placeholder: 'Search MS Address or Lng, Lat',
-      countries: 'us',
-      bbox: [-91.655, 30.205, -88.099, 34.996], 
-      proximity: { longitude: -89.3985, latitude: 32.3547 }, 
+      placeholder: 'Address or Lat, Long', // Updated placeholder
+      countries: 'us', // Restricted to US for relevancy
       marker: { color: '#e74c3c' }, 
       zoom: 16
   });
@@ -212,7 +210,6 @@
   map.on('mouseenter', 'mapillary-points', () => { map.getCanvas().style.cursor = 'pointer'; });
   map.on('mouseleave', 'mapillary-points', () => { map.getCanvas().style.cursor = ''; });
   
-  // Navigation control stays bottom-right to avoid layout clash
   map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
 </script>
 </body>
