@@ -115,7 +115,7 @@
     map.addLayer({ id: 'mapillary-lines', type: 'line', source: 'mapillary', 'source-layer': 'sequence', paint: { 'line-color': '#35af6d', 'line-width': 1.5, 'line-opacity': 0.6 } });
     map.addLayer({ id: 'mapillary-points', type: 'circle', source: 'mapillary', 'source-layer': 'image', paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 1, 10, 2.5, 14, 6, 22, 18], 'circle-color': '#35af6d', 'circle-stroke-width': 1, 'circle-stroke-color': '#fff' } });
 
-    // 2. County Boundaries and Formatting
+    // 2. County Boundaries
     fetch('./MSDOT/Mississippi_Counties.json')
       .then(res => res.json())
       .then(data => {
@@ -150,7 +150,7 @@
         map.fitBounds(bounds, { padding: 40 });
       });
 
-    // 3. Debris Points and Coordinate Conversion
+    // 3. Debris Points
     fetch('./MSDOT/Debris_Points.json')
       .then(res => res.json())
       .then(pointData => {
@@ -216,5 +216,33 @@
     map.setFilter('debris-layer', selectedType === 'All' ? null : ['==', ['get', 'Debris Type'], selectedType]);
   }
 
-  // FIX: Blob-based fetch to prevent browser blocking error
-  async function downloadFlatImage()
+  async function downloadFlatImage() {
+    if (!currentImageKey) { alert("Select a point first."); return; }
+    try {
+      const flatUrl = `https://images.mapillary.com/${currentImageKey}/thumb-2048.jpg`;
+      const response = await fetch(flatUrl);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `Flat_View_${currentImageKey}.jpg`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error("Download failed:", err);
+      alert("Unable to download image. The browser blocked the request.");
+    }
+  }
+
+  map.on('mouseenter', 'mapillary-points', () => { map.getCanvas().style.cursor = 'pointer'; });
+  map.on('mouseleave', 'mapillary-points', () => { map.getCanvas().style.cursor = ''; });
+  map.on('mouseenter', 'debris-layer', () => { map.getCanvas().style.cursor = 'pointer'; });
+  map.on('mouseleave', 'debris-layer', () => { map.getCanvas().style.cursor = ''; });
+
+  map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
+</script>
+</body>
+</html>
