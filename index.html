@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Vetted Analytics - Project Portal</title>
+<title>Vetted Analytics - Live Project Portal</title>
 <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
 <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
 <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
@@ -46,13 +46,17 @@
 <script>
   const urlParams = new URLSearchParams(window.location.search);
   const projectID = urlParams.get('id') || 'Mississippi_Counties'; 
+  
+  // PASTE YOUR ARCGIS URL HERE
+  // Format should end in /query?where=1%3D1&outFields=*&f=geojson&outSR=4326
+  const arcgisUrl = "PASTE_YOUR_ARCGIS_URL_HERE/query?where=1%3D1&outFields=*&f=geojson&outSR=4326";
 
   mapboxgl.accessToken = 'pk.eyJ1IjoianZldHRlcnMiLCJhIjoiY21sazFhdDg5MDV3dDNlcTI3aXlwejIwaSJ9.ecEavihruz0TZguVQvRiVg';
   const mlyToken = 'MLY|25724468457195152|d9c0ac6f4fbcd6ede3a3ba4e8332729b';
 
   const map = new mapboxgl.Map({
     container: 'map',
-    style: 'mapbox://styles/mapbox/light-v11', // Reverted to Light map
+    style: 'mapbox://styles/mapbox/light-v11', 
     zoom: 6,
     center: [-89.3985, 32.3547],
     maxZoom: 17
@@ -70,12 +74,32 @@
   }
 
   map.on('load', () => {
+    // 1. MAPILLARY DATA
     map.addSource('mapillary', {
       type: 'vector',
       tiles: [`https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${mlyToken}`],
       maxzoom: 17
     });
 
+    // 2. LIVE ARCGIS POINTS
+    map.addSource('arcgis-points', {
+      type: 'geojson',
+      data: arcgisUrl
+    });
+
+    map.addLayer({
+      id: 'live-points',
+      type: 'circle',
+      source: 'arcgis-points',
+      paint: {
+        'circle-radius': 6,
+        'circle-color': '#e74c3c', // Priority Red
+        'circle-stroke-width': 2,
+        'circle-stroke-color': '#fff'
+      }
+    });
+
+    // 3. STATIC COUNTY DATA
     fetch(`./data/${projectID}.json`)
       .then(res => res.json())
       .then(data => {
@@ -84,7 +108,6 @@
         });
         map.addSource('client-data', { type: 'geojson', data: data });
 
-        // Base Counties (Transparent)
         map.addLayer({
           id: 'county-fills',
           type: 'fill',
@@ -94,18 +117,16 @@
             'fill-opacity': 0.15,
             'fill-outline-color': 'rgba(0,0,0,0.1)'
           }
-        });
+        }, 'live-points'); // Keep points on top
 
-        // Mapillary Coverage (The road runs)
         map.addLayer({
           id: 'mapillary-lines',
           type: 'line',
           source: 'mapillary',
           'source-layer': 'sequence',
           paint: { 'line-color': '#35af6d', 'line-width': 2, 'line-opacity': 0.7 }
-        });
+        }, 'live-points');
 
-        // Interactive Points
         map.addLayer({
           id: 'mapillary-points',
           type: 'circle',
@@ -119,7 +140,6 @@
           }
         });
 
-        // Dark labels for the light map
         map.addLayer({
           id: 'county-labels',
           type: 'symbol',
@@ -143,15 +163,10 @@
       });
   });
 
-  // Date Filter Logic
   function applyDateFilter() {
-    const fromVal = document.getElementById('date-from').value;
-    const toVal = document.getElementById('date-to').value;
-    const fromTs = fromVal ? new Date(fromVal).getTime() : 0;
-    const toTs = toVal ? new Date(toVal).getTime() : Date.now();
-    
+    const fromTs = document.getElementById('date-from').value ? new Date(document.getElementById('date-from').value).getTime() : 0;
+    const toTs = document.getElementById('date-to').value ? new Date(document.getElementById('date-to').value).getTime() : Date.now();
     const filter = ['all', ['>=', ['get', 'captured_at'], fromTs], ['<=', ['get', 'captured_at'], toTs]];
-    
     if (map.getLayer('mapillary-lines')) map.setFilter('mapillary-lines', filter);
     if (map.getLayer('mapillary-points')) map.setFilter('mapillary-points', filter);
   }
