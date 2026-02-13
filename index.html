@@ -115,36 +115,18 @@
     map.addLayer({ id: 'mapillary-lines', type: 'line', source: 'mapillary', 'source-layer': 'sequence', paint: { 'line-color': '#35af6d', 'line-width': 1.5, 'line-opacity': 0.6 } });
     map.addLayer({ id: 'mapillary-points', type: 'circle', source: 'mapillary', 'source-layer': 'image', paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 1, 10, 2.5, 14, 6, 22, 18], 'circle-color': '#35af6d', 'circle-stroke-width': 1, 'circle-stroke-color': '#fff' } });
 
-    // 2. County Boundary Logic Restored
+    // 2. County Boundaries Logic Restored
     fetch('./MSDOT/Mississippi_Counties.json')
       .then(res => res.json())
       .then(data => {
-        data.features.forEach(f => {
-          f.properties.dynamicColor = stringToColour(f.properties.Name || "default");
-        });
+        data.features.forEach(f => { f.properties.dynamicColor = stringToColour(f.properties.Name || "default"); });
         map.addSource('counties', { type: 'geojson', data: data });
-        map.addLayer({
-          id: 'county-fills',
-          type: 'fill',
-          source: 'counties',
-          paint: {
-            'fill-color': ['get', 'dynamicColor'],
-            'fill-opacity': 0.15,
-            'fill-outline-color': '#000'
-          }
-        }, 'mapillary-lines');
-
+        map.addLayer({ id: 'county-fills', type: 'fill', source: 'counties', paint: { 'fill-color': ['get', 'dynamicColor'], 'fill-opacity': 0.15, 'fill-outline-color': '#000' } }, 'mapillary-lines');
         const bounds = new mapboxgl.LngLatBounds();
         data.features.forEach(f => {
           if (f.geometry && f.geometry.coordinates) {
             const coords = f.geometry.type === 'Polygon' ? f.geometry.coordinates[0] : f.geometry.coordinates;
-            coords.forEach(c => {
-              if (Array.isArray(c[0])) {
-                c.forEach(inner => bounds.extend(inner));
-              } else {
-                bounds.extend(c);
-              }
-            });
+            coords.forEach(c => { if (Array.isArray(c[0])) { c.forEach(inner => bounds.extend(inner)); } else { bounds.extend(c); } });
           }
         });
         map.fitBounds(bounds, { padding: 40 });
@@ -156,31 +138,11 @@
       .then(pointData => {
         pointData.features.forEach(f => {
           if (f.properties.Longitude && f.properties.Latitude) {
-            f.geometry = {
-              type: 'Point',
-              coordinates: [parseFloat(f.properties.Longitude), parseFloat(f.properties.Latitude)]
-            };
+            f.geometry = { type: 'Point', coordinates: [parseFloat(f.properties.Longitude), parseFloat(f.properties.Latitude)] };
           }
         });
         map.addSource('debris-points', { type: 'geojson', data: pointData });
-        map.addLayer({
-          id: 'debris-layer',
-          type: 'circle',
-          source: 'debris-points',
-          paint: {
-            'circle-radius': 7,
-            'circle-stroke-width': 2,
-            'circle-stroke-color': '#fff',
-            'circle-color': [
-              'match', ['get', 'Debris Type'],
-              'Hanger', '#f1c40f',
-              'Leaner', '#e67e22',
-              'VEG', '#2ecc71',
-              'C&D', '#9b59b6',
-              '#e74c3c'
-            ]
-          }
-        });
+        map.addLayer({ id: 'debris-layer', type: 'circle', source: 'debris-points', paint: { 'circle-radius': 7, 'circle-stroke-width': 2, 'circle-stroke-color': '#fff', 'circle-color': ['match', ['get', 'Debris Type'], 'Hanger', '#f1c40f', 'Leaner', '#e67e22', 'VEG', '#2ecc71', 'C&D', '#9b59b6', '#e74c3c'] } });
       });
 
     applyDateFilter();
@@ -193,45 +155,53 @@
 
   map.on('click', 'debris-layer', (e) => {
     const props = e.features[0].properties;
-    new mapboxgl.Popup()
-      .setLngLat(e.lngLat)
-      .setHTML(`<strong>Debris Type:</strong> ${props['Debris Type']}<br>
-                <strong>Lat:</strong> ${props.Latitude}<br>
-                <strong>Long:</strong> ${props.Longitude}`)
-      .addTo(map);
+    new mapboxgl.Popup().setLngLat(e.lngLat).setHTML(`<strong>Type:</strong> ${props['Debris Type']}<br><strong>Lat:</strong> ${props.Latitude}<br><strong>Long:</strong> ${props.Longitude}`).addTo(map);
   });
 
   function applyDateFilter() {
-    const fromVal = document.getElementById('date-from').value;
-    const toVal = document.getElementById('date-to').value;
-    const fromTs = fromVal ? new Date(fromVal).getTime() : 0;
-    const toTs = toVal ? new Date(toVal).getTime() : Date.now();
+    const fromTs = document.getElementById('date-from').value ? new Date(document.getElementById('date-from').value).getTime() : 0;
+    const toTs = document.getElementById('date-to').value ? new Date(document.getElementById('date-to').value).getTime() : Date.now();
     const filter = ['all', ['>=', ['get', 'captured_at'], fromTs], ['<=', ['get', 'captured_at'], toTs]];
     if (map.getLayer('mapillary-lines')) map.setFilter('mapillary-lines', filter);
     if (map.getLayer('mapillary-points')) map.setFilter('mapillary-points', filter);
   }
 
   function applyDebrisFilter() {
-    const selectedType = document.getElementById('debris-type-selector').value;
-    map.setFilter('debris-layer', selectedType === 'All' ? null : ['==', ['get', 'Debris Type'], selectedType]);
+    const type = document.getElementById('debris-type-selector').value;
+    map.setFilter('debris-layer', type === 'All' ? null : ['==', ['get', 'Debris Type'], type]);
   }
 
-  // FIX: Direct navigation to bypass CORS security blocking
-  function downloadFlatImage() {
-    if (!currentImageKey) { 
-      alert("Please select a point on the map first."); 
-      return; 
+  // UPDATED DOWNLOAD: Fetches pre-processed high-res flat image directly via Graph API
+  async function downloadFlatImage() {
+    if (!currentImageKey) { alert("Select a point first."); return; }
+    try {
+      // images.mapillary.com is internal; Graph API thumb_2048_url provides the flattened view
+      const res = await fetch(`https://graph.mapillary.com/${currentImageKey}?fields=thumb_2048_url&access_token=${mlyToken}`);
+      const data = await res.json();
+      const imageUrl = data.thumb_2048_url;
+
+      if (imageUrl) {
+        const imageRes = await fetch(imageUrl);
+        const blob = await imageRes.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Debris_Flat_View_${currentImageKey}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+      }
+    } catch (err) { 
+        console.error("Download failed:", err);
+        alert("Download failed. This is likely a browser security restriction. Please right-click the image in the viewer if possible.");
     }
-    // Pulls the pre-rendered non-distorted flat view from Mapillary's image server
-    const flatUrl = `https://images.mapillary.com/${currentImageKey}/thumb-2048.jpg`;
-    window.open(flatUrl, '_blank'); 
   }
 
   map.on('mouseenter', 'mapillary-points', () => { map.getCanvas().style.cursor = 'pointer'; });
   map.on('mouseleave', 'mapillary-points', () => { map.getCanvas().style.cursor = ''; });
   map.on('mouseenter', 'debris-layer', () => { map.getCanvas().style.cursor = 'pointer'; });
   map.on('mouseleave', 'debris-layer', () => { map.getCanvas().style.cursor = ''; });
-
   map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
 </script>
 </body>
