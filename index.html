@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Mapillary Project Tracker - Multi-Filter</title>
+<title>Mapillary - Native-Style Tracker</title>
 <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
 <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
 <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
@@ -21,7 +21,7 @@
   .row { display: flex; flex-direction: column; gap: 4px; }
   label { font-size: 11px; font-weight: bold; color: #555; text-transform: uppercase; }
   input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
-  button { padding: 12px; background: #35af6d; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 5px; }
+  button { padding: 12px; background: #35af6d; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
   .status { font-size: 11px; color: #777; font-style: italic; }
 </style>
 </head>
@@ -29,19 +29,19 @@
 
 <div class="controls">
   <div class="row">
-    <label>Username</label>
-    <input type="text" id="user-input" placeholder="e.g. jvetters" value="jvetters">
+    <label>Capture User</label>
+    <input type="text" id="user-input" placeholder="jvetters" value="jvetters">
   </div>
   <div class="row">
-    <label>From Date</label>
+    <label>Start Date</label>
     <input type="date" id="date-from">
   </div>
   <div class="row">
-    <label>To Date</label>
+    <label>End Date</label>
     <input type="date" id="date-to">
   </div>
-  <button onclick="applyFilters()">Update Project Map</button>
-  <div id="filter-status" class="status">Showing all captures</div>
+  <button onclick="updateSource()">Apply Native Filters</button>
+  <div id="filter-status" class="status">Initial load...</div>
 </div>
 
 <div id="map"></div>
@@ -60,11 +60,29 @@
     center: [-89.9449, 34.3085] 
   });
 
-  map.on('load', () => {
-    map.addSource('mapillary', {
-      type: 'vector',
-      tiles: [`https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${mlyToken}`]
-    });
+  function updateSource() {
+    const user = document.getElementById('user-input').value.trim();
+    const fromVal = document.getElementById('date-from').value;
+    const toVal = document.getElementById('date-to').value;
+    const status = document.getElementById('filter-status');
+    
+    const fromTs = fromVal ? new Date(fromVal).getTime() : 0;
+    const toTs = toVal ? new Date(toVal).getTime() : Date.now();
+
+    // SERVER-SIDE FILTER: This is the most reliable way to hide other users' data
+    // We append creator_username and dates directly to the tile URL request.
+    let tileUrl = `https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${mlyToken}`;
+    if (user) tileUrl += `&creator_username=${user}`;
+    if (fromTs) tileUrl += `&start_time=${fromTs}`;
+    if (toTs < Date.now()) tileUrl += `&end_time=${toTs}`;
+
+    if (map.getSource('mapillary')) {
+      map.removeLayer('mapillary-points');
+      map.removeLayer('mapillary-lines');
+      map.removeSource('mapillary');
+    }
+
+    map.addSource('mapillary', { type: 'vector', tiles: [tileUrl] });
 
     map.addLayer({
       id: 'mapillary-lines',
@@ -80,40 +98,13 @@
       source: 'mapillary',
       'source-layer': 'image',
       minzoom: 10,
-      paint: { 'circle-radius': 6, 'circle-color': '#35af6d', 'circle-stroke-width': 1, 'circle-stroke-color': '#fff' }
+      paint: { 'circle-radius': 8, 'circle-color': '#35af6d', 'circle-stroke-width': 2, 'circle-stroke-color': '#fff' }
     });
-  });
 
-  function applyFilters() {
-    const user = document.getElementById('user-input').value.trim();
-    const fromVal = document.getElementById('date-from').value;
-    const toVal = document.getElementById('date-to').value;
-    const status = document.getElementById('filter-status');
-    
-    // Mapillary timestamps are in milliseconds
-    const fromTs = fromVal ? new Date(fromVal).getTime() : 0;
-    const toTs = toVal ? new Date(toVal).getTime() : Date.now();
-    
-    let filterArr = ['all'];
-    
-    // Improved User Filter: Using case-insensitive match for reliability
-    if (user !== "") {
-      filterArr.push(['in', user, ['get', 'creator_username']]);
-    }
-    
-    // Date Range Filter
-    if (fromTs > 0 || toTs < Date.now()) {
-      filterArr.push(['>=', ['get', 'captured_at'], fromTs]);
-      filterArr.push(['<=', ['get', 'captured_at'], toTs]);
-    }
-
-    const finalFilter = filterArr.length > 1 ? filterArr : null;
-    
-    if (map.getLayer('mapillary-lines')) map.setFilter('mapillary-lines', finalFilter);
-    if (map.getLayer('mapillary-points')) map.setFilter('mapillary-points', finalFilter);
-    
-    status.innerText = user ? `Filtering for ${user}` : "Showing all public imagery";
+    status.innerText = `Source Rebuilt: ${user || 'Global View'}`;
   }
+
+  map.on('load', updateSource);
 
   map.on('click', (e) => {
     const features = map.queryRenderedFeatures(e.point, { layers: ['mapillary-points', 'mapillary-lines'] });
