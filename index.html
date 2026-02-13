@@ -216,34 +216,5 @@
     map.setFilter('debris-layer', selectedType === 'All' ? null : ['==', ['get', 'Debris Type'], selectedType]);
   }
 
-  // FIX: Blob-based fetch to prevent "Site Cannot Be Reached" error
-  async function downloadFlatImage() {
-    if (!currentImageKey) { alert("Select a point first."); return; }
-    try {
-      const flatUrl = `https://images.mapillary.com/${currentImageKey}/thumb-2048.jpg`;
-      const response = await fetch(flatUrl);
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      
-      const a = document.createElement('a');
-      a.href = blobUrl;
-      a.download = `Flat_View_${currentImageKey}.jpg`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(blobUrl);
-    } catch (err) {
-      console.error("Download failed:", err);
-      alert("Unable to download image. The browser blocked the request.");
-    }
-  }
-
-  map.on('mouseenter', 'mapillary-points', () => { map.getCanvas().style.cursor = 'pointer'; });
-  map.on('mouseleave', 'mapillary-points', () => { map.getCanvas().style.cursor = ''; });
-  map.on('mouseenter', 'debris-layer', () => { map.getCanvas().style.cursor = 'pointer'; });
-  map.on('mouseleave', 'debris-layer', () => { map.getCanvas().style.cursor = ''; });
-
-  map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
-</script>
-</body>
-</html>
+  // FIX: Blob-based fetch to prevent browser blocking error
+  async function downloadFlatImage()
