@@ -17,7 +17,6 @@
   #map { width: 100%; height: 100%; }
   iframe { width: 100%; height: 100%; border: none; }
 
-  /* Controls panel in the top-right */
   .controls {
     position: absolute; top: 15px; right: 15px; z-index: 10;
     background: white; padding: 12px; border-radius: 8px;
@@ -28,12 +27,16 @@
   input, select { padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px; width: 100%; }
   button { padding: 10px; background: #35af6d; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
   button:hover { background: #2d965d; }
+  
+  /* Download button styling */
+  #download-btn { background: #2c3e50; margin-top: 5px; }
+  #download-btn:hover { background: #1a252f; }
 
   .legend-container { margin-top: 5px; display: flex; flex-direction: column; gap: 4px; }
   .legend-item { display: flex; align-items: center; font-size: 11px; color: #444; font-weight: bold; }
   .legend-key { width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; border: 1px solid #fff; }
 
-  /* Geocoder width and border styling for the divider edge */
+  /* Geocoder width for top-left placement */
   .mapboxgl-ctrl-geocoder { min-width: 250px; border: 1px solid #35af6d; }
 </style>
 </head>
@@ -48,6 +51,9 @@
     <label>From Date</label><input type="date" id="date-from" value="2026-02-03">
     <label>To Date</label><input type="date" id="date-to">
     <button onclick="applyDateFilter()">Filter Road Runs</button>
+    
+    <button id="download-btn" onclick="downloadCurrentImage()">Download High-Res</button>
+    
     <hr style="border:0; border-top:1px solid #eee; margin: 4px 0;">
     <label>Debris Type Filter</label>
     <select id="debris-type-selector" onchange="applyDebrisFilter()">
@@ -73,6 +79,7 @@
 <script>
   mapboxgl.accessToken = 'pk.eyJ1IjoianZldHRlcnMiLCJhIjoiY21sazFhdDg5MDV3dDNlcTI3aXlwejIwaSJ9.ecEavihruz0TZguVQvRiVg';
   const mlyToken = 'MLY|25724468457195152|d9c0ac6f4fbcd6ede3a3ba4e8332729b';
+  let currentImageKey = null;
 
   const map = new mapboxgl.Map({
     container: 'map',
@@ -82,12 +89,12 @@
     maxZoom: 22
   });
 
-  // BROADENED SEARCH BAR (Global US + Coordinates)
+  // Search Bar (Global US + Coordinates)
   const geocoder = new MapboxGeocoder({
       accessToken: mapboxgl.accessToken,
       mapboxgl: mapboxgl,
-      placeholder: 'Address or Lat, Long', // Updated placeholder
-      countries: 'us', // Restricted to US for relevancy
+      placeholder: 'Address or Lat, Long',
+      countries: 'us',
       marker: { color: '#e74c3c' }, 
       zoom: 16
   });
@@ -123,40 +130,12 @@
       source: 'mapillary',
       'source-layer': 'image',
       paint: { 
-        'circle-radius': [
-          'interpolate', ['linear'], ['zoom'], 
-          4, 1,
-          10, 2.5,
-          14, 6,
-          22, 18
-        ],
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 1, 10, 2.5, 14, 6, 22, 18],
         'circle-color': '#35af6d', 
         'circle-stroke-width': 1, 
         'circle-stroke-color': '#fff'
       }
     });
-
-    fetch('./MSDOT/Mississippi_Counties.json')
-      .then(res => res.json())
-      .then(data => {
-        data.features.forEach(f => f.properties.dynamicColor = stringToColour(f.properties.Name || "default"));
-        map.addSource('counties', { type: 'geojson', data: data });
-        map.addLayer({
-          id: 'county-fills',
-          type: 'fill',
-          source: 'counties',
-          paint: { 'fill-color': ['get', 'dynamicColor'], 'fill-opacity': 0.15, 'fill-outline-color': '#000' }
-        }, 'mapillary-lines');
-
-        const bounds = new mapboxgl.LngLatBounds();
-        data.features.forEach(f => {
-          if (f.geometry && f.geometry.coordinates) {
-            const coords = f.geometry.type === 'Polygon' ? f.geometry.coordinates[0] : f.geometry.coordinates;
-            coords.forEach(c => bounds.extend(Array.isArray(c[0]) ? c[0] : c));
-          }
-        });
-        map.fitBounds(bounds, { padding: 40 });
-      });
 
     fetch('./MSDOT/Debris_Points.json')
       .then(res => res.json())
@@ -182,9 +161,37 @@
           }
         });
       });
-
-    applyDateFilter();
   });
+
+  map.on('click', 'mapillary-points', (e) => {
+    currentImageKey = e.features[0].properties.id;
+    document.getElementById('mly-frame').src = `https://www.mapillary.com/embed?image_key=${currentImageKey}&style=photo&menu=false`;
+  });
+
+  // Function to download the flat high-res image
+  function downloadCurrentImage() {
+    if (!currentImageKey) {
+      alert("Please select a point on the map first.");
+      return;
+    }
+
+    fetch(`https://graph.mapillary.com/${currentImageKey}?fields=thumb_2048_url&access_token=${mlyToken}`)
+      .then(response => response.json())
+      .then(data => {
+        const imageUrl = data.thumb_2048_url;
+        if (imageUrl) {
+          const link = document.createElement('a');
+          link.href = imageUrl;
+          link.download = `Mapillary_Flat_${currentImageKey}.jpg`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        } else {
+          alert("High-res flat image not available.");
+        }
+      })
+      .catch(err => console.error("Error fetching image:", err));
+  }
 
   function applyDateFilter() {
     const fromTs = document.getElementById('date-from').value ? new Date(document.getElementById('date-from').value).getTime() : 0;
@@ -196,20 +203,11 @@
 
   function applyDebrisFilter() {
     const selectedType = document.getElementById('debris-type-selector').value;
-    if (selectedType === 'All') {
-      map.setFilter('debris-layer', null);
-    } else {
-      map.setFilter('debris-layer', ['==', ['get', 'Debris Type'], selectedType]);
-    }
+    map.setFilter('debris-layer', selectedType === 'All' ? null : ['==', ['get', 'Debris Type'], selectedType]);
   }
 
-  map.on('click', 'mapillary-points', (e) => {
-    document.getElementById('mly-frame').src = `https://www.mapillary.com/embed?image_key=${e.features[0].properties.id}&style=photo&menu=false`;
-  });
-  
   map.on('mouseenter', 'mapillary-points', () => { map.getCanvas().style.cursor = 'pointer'; });
   map.on('mouseleave', 'mapillary-points', () => { map.getCanvas().style.cursor = ''; });
-  
   map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
 </script>
 </body>
