@@ -16,6 +16,7 @@
   label { font-size: 10px; font-weight: bold; color: #666; text-transform: uppercase; }
   input { padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px; }
   button { padding: 10px; background: #35af6d; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+  button:hover { background: #2d965d; }
 </style>
 </head>
 <body>
@@ -51,15 +52,12 @@
     let hash = 0;
     for (let i = 0; i < str.length; i++) { hash = str.charCodeAt(i) + ((hash << 5) - hash); }
     let colour = '#';
-    for (let i = 0; i < 3; i++) {
-      let value = (hash >> (i * 8)) & 0xFF;
-      colour += ('00' + value.toString(16)).substr(-2);
-    }
+    for (let i = 0; i < 3; i++) { colour += ('00' + ((hash >> (i * 8)) & 0xFF).toString(16)).substr(-2); }
     return colour;
   }
 
   map.on('load', () => {
-    // 1. ADD COUNTIES FIRST (The base layer)
+    // 1. Load Counties First
     fetch('./MSDOT/Mississippi_Counties.json')
       .then(res => res.json())
       .then(data => {
@@ -79,7 +77,7 @@
           }
         });
 
-        // 2. ADD DEBRIS POINTS (Above counties)
+        // 2. Load Debris Points with Geometry Fix & Color Match
         fetch('./MSDOT/Debris_Points.json')
           .then(res => res.json())
           .then(pointData => {
@@ -98,14 +96,22 @@
               source: 'debris-points',
               paint: {
                 'circle-radius': 7,
-                'circle-color': '#e74c3c',
                 'circle-stroke-width': 2,
-                'circle-stroke-color': '#fff'
+                'circle-stroke-color': '#fff',
+                'circle-color': [
+                  'match',
+                  ['get', 'Debris Type'],
+                  'Hanger', '#f1c40f',  // Yellow
+                  'Leaner', '#e67e22',  // Orange
+                  'VEG', '#2ecc71',     // Green
+                  'C&D', '#9b59b6',     // Purple
+                  '#e74c3c'             // Default: Red
+                ]
               }
             });
           });
 
-        // 3. ADD MAPILLARY (Top layers)
+        // 3. Load Mapillary Interactivity
         map.addSource('mapillary', {
           type: 'vector',
           tiles: [`https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${mlyToken}`],
@@ -133,7 +139,6 @@
           }
         });
 
-        // Auto-zoom to the counties
         const bounds = new mapboxgl.LngLatBounds();
         data.features.forEach(f => {
           if (f.geometry && f.geometry.coordinates) {
@@ -146,21 +151,4 @@
   });
 
   function applyDateFilter() {
-    const fromTs = document.getElementById('date-from').value ? new Date(document.getElementById('date-from').value).getTime() : 0;
-    const toTs = document.getElementById('date-to').value ? new Date(document.getElementById('date-to').value).getTime() : Date.now();
-    const filter = ['all', ['>=', ['get', 'captured_at'], fromTs], ['<=', ['get', 'captured_at'], toTs]];
-    if (map.getLayer('mapillary-lines')) map.setFilter('mapillary-lines', filter);
-    if (map.getLayer('mapillary-points')) map.setFilter('mapillary-points', filter);
-  }
-
-  map.on('click', 'mapillary-points', (e) => {
-    const imgId = e.features[0].properties.id;
-    document.getElementById('mly-frame').src = `https://www.mapillary.com/embed?image_key=${imgId}&style=photo&menu=false`;
-  });
-
-  map.on('mouseenter', 'mapillary-points', () => { map.getCanvas().style.cursor = 'pointer'; });
-  map.on('mouseleave', 'mapillary-points', () => { map.getCanvas().style.cursor = ''; });
-  map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
-</script>
-</body>
-</html>
+    const fromTs = document.getElementById('date-from').value ? new Date(document.getElementById
