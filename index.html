@@ -17,9 +17,9 @@
   #map { width: 100%; height: 100%; }
   iframe { width: 100%; height: 100%; border: none; }
 
-  /* Controls shifted down to accommodate Search Bar */
+  /* Controls moved back to top-right now that search is top-left */
   .controls {
-    position: absolute; top: 70px; right: 15px; z-index: 10;
+    position: absolute; top: 15px; right: 15px; z-index: 10;
     background: white; padding: 12px; border-radius: 8px;
     box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 180px;
     display: flex; flex-direction: column; gap: 8px;
@@ -33,8 +33,8 @@
   .legend-item { display: flex; align-items: center; font-size: 11px; color: #444; font-weight: bold; }
   .legend-key { width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; border: 1px solid #fff; }
 
-  /* Ensure search bar width matches the control panel */
-  .mapboxgl-ctrl-geocoder { min-width: 204px; }
+  /* Geocoder width adjustment for top-left placement */
+  .mapboxgl-ctrl-geocoder { min-width: 250px; border: 1px solid #35af6d; }
 </style>
 </head>
 <body>
@@ -82,18 +82,18 @@
     maxZoom: 22
   });
 
-  // MS-Prioritized Search Bar
+  // MS-Prioritized Search Bar placed at TOP-LEFT (divider edge)
   const geocoder = new MapboxGeocoder({
       accessToken: mapboxgl.accessToken,
       mapboxgl: mapboxgl,
       placeholder: 'Search MS Address or Lng, Lat',
       countries: 'us',
-      bbox: [-91.655, 30.205, -88.099, 34.996], // Mississippi boundaries
-      proximity: { longitude: -89.3985, latitude: 32.3547 }, // Favor center of MS
+      bbox: [-91.655, 30.205, -88.099, 34.996], 
+      proximity: { longitude: -89.3985, latitude: 32.3547 }, 
       marker: { color: '#e74c3c' }, 
       zoom: 16
   });
-  map.addControl(geocoder, 'top-right');
+  map.addControl(geocoder, 'top-left');
 
   const stringToColour = (str) => {
     let hash = 0;
@@ -211,6 +211,8 @@
   
   map.on('mouseenter', 'mapillary-points', () => { map.getCanvas().style.cursor = 'pointer'; });
   map.on('mouseleave', 'mapillary-points', () => { map.getCanvas().style.cursor = ''; });
+  
+  // Navigation control stays bottom-right to avoid layout clash
   map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
 </script>
 </body>
