@@ -10,6 +10,9 @@
 <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.min.js"></script>
 <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.css" type="text/css">
 
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css"/>
+<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
+
 <style>
   body { margin: 0; padding: 0; font-family: 'Helvetica Neue', Arial, sans-serif; background: #f4f4f4; overflow: hidden; }
   #mly-container { position: absolute; top: 0; bottom: 0; left: 0; width: 50%; background: #000; border-right: 2px solid #35af6d; }
@@ -29,17 +32,15 @@
   button:hover { background: #2d965d; }
   
   #download-btn { background: #2c3e50; margin-top: 5px; }
-  
-  /* Zoom Button Styling */
   .zoom-controls { display: flex; gap: 5px; margin-top: 5px; }
   .zoom-btn { flex: 1; background: #34495e; padding: 8px; font-size: 14px; }
-  .zoom-btn:hover { background: #2c3e50; }
 
   .legend-container { margin-top: 5px; display: flex; flex-direction: column; gap: 4px; }
   .legend-item { display: flex; align-items: center; font-size: 11px; color: #444; font-weight: bold; }
-  .legend-key { width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; border: 1 solid #fff; }
+  .legend-key { width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; border: 1px solid #fff; }
 
-  .mapboxgl-ctrl-geocoder { min-width: 250px; border: 1px solid #35af6d; }
+  /* 360 Viewer specific height in popup */
+  #pano-viewer { width: 100%; height: 200px; background: #eee; margin-top: 10px; }
 </style>
 </head>
 <body>
@@ -72,11 +73,11 @@
     <hr style="border:0; border-top:1px solid #eee; margin: 4px 0;">
     <label>Legend</label>
     <div class="legend-container">
+      <div class="legend-item"><div class="legend-key" style="background: #00ffff; border: 2px solid #000;"></div>Drone 360</div>
       <div class="legend-item"><div class="legend-key" style="background: #f1c40f;"></div>Hanger</div>
       <div class="legend-item"><div class="legend-key" style="background: #e67e22;"></div>Leaner</div>
       <div class="legend-item"><div class="legend-key" style="background: #2ecc71;"></div>VEG</div>
       <div class="legend-item"><div class="legend-key" style="background: #9b59b6;"></div>C&D</div>
-      <div class="legend-item"><div class="legend-key" style="background: #e74c3c;"></div>Unknown</div>
     </div>
   </div>
   <div id="map"></div>
@@ -86,7 +87,7 @@
   mapboxgl.accessToken = 'pk.eyJ1IjoianZldHRlcnMiLCJhIjoiY21sazFhdDg5MDV3dDNlcTI3aXlwejIwaSJ9.ecEavihruz0TZguVQvRiVg';
   const mlyToken = 'MLY|25724468457195152|d9c0ac6f4fbcd6ede3a3ba4e8332729b';
   let currentImageKey = null;
-  let currentZoom = 1.0; // Track zoom level locally
+  let currentZoom = 1.0;
 
   const map = new mapboxgl.Map({
     container: 'map',
@@ -96,36 +97,14 @@
     maxZoom: 22
   });
 
-  const coordinatesGeocoder = function (query) {
-    const matches = query.match(/^[ ]*(?:Lat: )?(-?\d+\.?\d*)[, ]+(?:Lng: )?(-?\d+\.?\d*)[ ]*$/i);
-    if (!matches) return null;
-    function coordinateFeature(lng, lat) {
-      return {
-        center: [lng, lat],
-        geometry: { type: 'Point', coordinates: [lng, lat] },
-        place_name: 'Lat: ' + lat + ' Lng: ' + lng,
-        place_type: ['coordinate'],
-        properties: {},
-        type: 'Feature'
-      };
-    }
-    const coord1 = Number(matches[1]);
-    const coord2 = Number(matches[2]);
-    const geocodes = [];
-    if (coord1 < 90 && coord1 > -90 && coord2 < 180 && coord2 > -180) geocodes.push(coordinateFeature(coord2, coord1));
-    if (coord2 < 90 && coord2 > -90 && coord1 < 180 && coord1 > -180) geocodes.push(coordinateFeature(coord1, coord2));
-    return geocodes.length === 0 ? null : geocodes;
-  };
-
+  // Geocoder setup
   const geocoder = new MapboxGeocoder({
       accessToken: mapboxgl.accessToken,
-      localGeocoder: coordinatesGeocoder, 
       mapboxgl: mapboxgl,
       placeholder: 'Address or Lat, Long',
       countries: 'us',
-      marker: { color: '#e74c3c' }, 
-      zoom: 16,
-      reverseGeocode: true
+      marker: { color: '#e74c3c' },
+      zoom: 16
   });
   map.addControl(geocoder, 'top-left');
 
@@ -138,58 +117,92 @@
   }
 
   map.on('load', () => {
+    // 1. Mapillary Source
     map.addSource('mapillary', {
       type: 'vector',
       tiles: [`https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${mlyToken}`],
       minzoom: 0, maxzoom: 24, promoteId: 'id'
     });
-
     map.addLayer({ id: 'mapillary-lines', type: 'line', source: 'mapillary', 'source-layer': 'sequence', paint: { 'line-color': '#35af6d', 'line-width': 1.5, 'line-opacity': 0.6 } });
     map.addLayer({ id: 'mapillary-points', type: 'circle', source: 'mapillary', 'source-layer': 'image', paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 1, 10, 2.5, 14, 6, 22, 18], 'circle-color': ['case', ['boolean', ['feature-state', 'selected'], false], '#ff9f43', '#35af6d'], 'circle-stroke-width': ['case', ['boolean', ['feature-state', 'selected'], false], 3, 1], 'circle-stroke-color': '#fff' } });
 
+    // 2. County Fills
     fetch('./MSDOT/Mississippi_Counties.json').then(res => res.json()).then(data => {
         data.features.forEach(f => { f.properties.dynamicColor = stringToColour(f.properties.Name || "default"); });
         map.addSource('counties', { type: 'geojson', data: data });
         map.addLayer({ id: 'county-fills', type: 'fill', source: 'counties', paint: { 'fill-color': ['get', 'dynamicColor'], 'fill-opacity': 0.15, 'fill-outline-color': '#000' } }, 'mapillary-lines');
-        const bounds = new mapboxgl.LngLatBounds();
-        data.features.forEach(f => {
-          if (f.geometry && f.geometry.coordinates) {
-            const coords = f.geometry.type === 'Polygon' ? f.geometry.coordinates[0] : f.geometry.coordinates;
-            coords.forEach(c => { if (Array.isArray(c[0])) { c.forEach(inner => bounds.extend(inner)); } else { bounds.extend(c); } });
-          }
-        });
-        map.fitBounds(bounds, { padding: 40 });
     });
 
+    // 3. Debris Points (CSV/JSON)
     fetch('./MSDOT/Debris_Points.json').then(res => res.json()).then(pointData => {
-        pointData.features.forEach(f => { if (f.properties.Longitude && f.properties.Latitude) f.geometry = { type: 'Point', coordinates: [parseFloat(f.properties.Longitude), parseFloat(f.properties.Latitude)] }; });
         map.addSource('debris-points', { type: 'geojson', data: pointData });
         map.addLayer({ id: 'debris-layer', type: 'circle', source: 'debris-points', paint: { 'circle-radius': 7, 'circle-stroke-width': 2, 'circle-stroke-color': '#fff', 'circle-color': ['match', ['get', 'Debris Type'], 'Hanger', '#f1c40f', 'Leaner', '#e67e22', 'VEG', '#2ecc71', 'C&D', '#9b59b6', '#e74c3c'] } });
     });
+
+    // 4. NEW: Drone 360 Photos (Google Drive source)
+    map.addSource('drone-360', {
+        type: 'geojson',
+        data: './points.json'
+    });
+
+    map.addLayer({
+        id: 'drone-layer',
+        type: 'circle',
+        source: 'drone-360',
+        paint: {
+            'circle-radius': 9,
+            'circle-color': '#00ffff',
+            'circle-stroke-width': 3,
+            'circle-stroke-color': '#000'
+        }
+    });
+
     applyDateFilter();
   });
 
-  // ZOOM LOGIC: Sends a FOV change message to Mapillary
+  // Mapillary Zoom
   function zoomMapillary(delta) {
     currentZoom = Math.min(Math.max(currentZoom + delta, 0.5), 3.0);
     const frame = document.getElementById('mly-frame');
     frame.contentWindow.postMessage(JSON.stringify({type: 'mly.zoom', value: currentZoom}), 'https://www.mapillary.com');
   }
 
-  let selectedPointId = null;
+  // Click Mapillary
   map.on('click', 'mapillary-points', (e) => {
     const feature = e.features[0];
     currentImageKey = feature.properties.id;
-    if (selectedPointId !== null) map.setFeatureState({ source: 'mapillary', sourceLayer: 'image', id: selectedPointId }, { selected: false });
-    selectedPointId = feature.id;
-    map.setFeatureState({ source: 'mapillary', sourceLayer: 'image', id: selectedPointId }, { selected: true });
-    currentZoom = 1.0; // Reset zoom on new image
     document.getElementById('mly-frame').src = `https://www.mapillary.com/embed?image_key=${currentImageKey}&style=photo&menu=false&publish=true`;
   });
 
+  // Click Debris
   map.on('click', 'debris-layer', (e) => {
     const props = e.features[0].properties;
-    new mapboxgl.Popup().setLngLat(e.lngLat).setHTML(`<strong>Type:</strong> ${props['Debris Type']}<br>Lat: ${props.Latitude}<br>Long: ${props.Longitude}`).addTo(map);
+    new mapboxgl.Popup().setLngLat(e.lngLat).setHTML(`<strong>Debris Type:</strong> ${props['Debris Type']}`).addTo(map);
+  });
+
+  // CLICK DRONE PINS: Opens Pannellum 360 Viewer
+  map.on('click', 'drone-layer', (e) => {
+    const props = e.features[0].properties;
+    const coordinates = e.features[0].geometry.coordinates.slice();
+    const photoUrl = props.Viewer_Link;
+
+    new mapboxgl.Popup()
+        .setLngLat(coordinates)
+        .setHTML(`
+            <div style="width:300px;">
+                <label>Drone Imagery - ${props.DateTime || 'Capture'}</label>
+                <div id="pano-viewer"></div>
+                <p style="font-size:10px; margin-top:5px;">GPS: ${coordinates[1]}, ${coordinates[0]}</p>
+            </div>
+        `)
+        .addTo(map);
+
+    // Initialize the 360 view inside the popup
+    pannellum.viewer('pano-viewer', {
+        "type": "equirectangular",
+        "panorama": photoUrl,
+        "autoLoad": true
+    });
   });
 
   function applyDateFilter() {
@@ -207,31 +220,13 @@
     map.setFilter('debris-layer', selectedType === 'All' ? null : ['==', ['get', 'Debris Type'], selectedType]);
   }
 
-  async function downloadImage() {
-    if (!currentImageKey) { alert("Select a point first."); return; }
-    try {
-      const res = await fetch(`https://graph.mapillary.com/${currentImageKey}?fields=thumb_2048_url&access_token=${mlyToken}`);
-      const data = await res.json();
-      const imageUrl = data.thumb_2048_url;
-      if (imageUrl) {
-        const imageRes = await fetch(imageUrl);
-        const blob = await imageRes.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `Debris_View_${currentImageKey}.jpg`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        window.URL.revokeObjectURL(url);
-      }
-    } catch (err) { alert("Download security block. Right-click image in viewer to save."); }
-  }
+  // Mouse Hovers
+  const layerIds = ['mapillary-points', 'debris-layer', 'drone-layer'];
+  layerIds.forEach(id => {
+    map.on('mouseenter', id, () => { map.getCanvas().style.cursor = 'pointer'; });
+    map.on('mouseleave', id, () => { map.getCanvas().style.cursor = ''; });
+  });
 
-  map.on('mouseenter', 'mapillary-points', () => { map.getCanvas().style.cursor = 'pointer'; });
-  map.on('mouseleave', 'mapillary-points', () => { map.getCanvas().style.cursor = ''; });
-  map.on('mouseenter', 'debris-layer', () => { map.getCanvas().style.cursor = 'pointer'; });
-  map.on('mouseleave', 'debris-layer', () => { map.getCanvas().style.cursor = ''; });
   map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
 </script>
 </body>
