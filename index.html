@@ -10,9 +10,6 @@
 <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.min.js"></script>
 <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.css" type="text/css">
 
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css"/>
-<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
-
 <style>
   body { margin: 0; padding: 0; font-family: 'Helvetica Neue', Arial, sans-serif; background: #f4f4f4; overflow: hidden; }
   #mly-container { position: absolute; top: 0; bottom: 0; left: 0; width: 50%; background: #000; border-right: 2px solid #35af6d; }
@@ -39,7 +36,9 @@
   .legend-item { display: flex; align-items: center; font-size: 11px; color: #444; font-weight: bold; }
   .legend-key { width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; border: 1px solid #fff; }
 
-  #pano-viewer { width: 100%; height: 200px; background: #eee; margin-top: 10px; }
+  /* Style for Drone Popup */
+  .drone-popup .mapboxgl-popup-content { padding: 15px; width: 320px; border-radius: 12px; }
+  .drone-frame { width: 100%; height: 220px; border-radius: 8px; border: 1px solid #ddd; }
 </style>
 </head>
 <body>
@@ -108,7 +107,7 @@
   map.addControl(geocoder, 'top-left');
 
   map.on('load', () => {
-    // 1. Mapillary Lines & Points
+    // 1. Mapillary Logic
     map.addSource('mapillary', {
       type: 'vector',
       tiles: [`https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${mlyToken}`],
@@ -124,7 +123,7 @@
         map.addLayer({ id: 'debris-layer', type: 'circle', source: 'debris-points', paint: { 'circle-radius': 7, 'circle-stroke-width': 2, 'circle-stroke-color': '#fff', 'circle-color': ['match', ['get', 'Debris Type'], 'Hanger', '#f1c40f', 'Leaner', '#e67e22', 'VEG', '#2ecc71', 'C&D', '#9b59b6', '#e74c3c'] } });
     });
 
-    // 3. Drone 360 Points
+    // 3. Drone Points
     map.addSource('drone-360', {
         type: 'geojson',
         data: './MSDOT/dronepoints.json'
@@ -144,18 +143,17 @@
     applyDateFilter();
   });
 
+  // Controls & Click Handlers
   function zoomMapillary(delta) {
     currentZoom = Math.min(Math.max(currentZoom + delta, 0.5), 3.0);
-    const frame = document.getElementById('mly-frame');
-    frame.contentWindow.postMessage(JSON.stringify({type: 'mly.zoom', value: currentZoom}), 'https://www.mapillary.com');
+    document.getElementById('mly-frame').contentWindow.postMessage(JSON.stringify({type: 'mly.zoom', value: currentZoom}), 'https://www.mapillary.com');
   }
 
   let selectedPointId = null;
   map.on('click', 'mapillary-points', (e) => {
-    const feature = e.features[0];
-    currentImageKey = feature.properties.id;
+    currentImageKey = e.features[0].properties.id;
     if (selectedPointId !== null) map.setFeatureState({ source: 'mapillary', sourceLayer: 'image', id: selectedPointId }, { selected: false });
-    selectedPointId = feature.id;
+    selectedPointId = e.features[0].id;
     map.setFeatureState({ source: 'mapillary', sourceLayer: 'image', id: selectedPointId }, { selected: true });
     document.getElementById('mly-frame').src = `https://www.mapillary.com/embed?image_key=${currentImageKey}&style=photo&menu=false&publish=true`;
   });
@@ -165,26 +163,21 @@
     new mapboxgl.Popup().setLngLat(e.lngLat).setHTML(`<strong>Type:</strong> ${props['Debris Type']}<br>Lat: ${props.Latitude}`).addTo(map);
   });
 
+  // THE FIX: Loading via Iframe to bypass CORS errors
   map.on('click', 'drone-layer', (e) => {
     const props = e.features[0].properties;
-    new mapboxgl.Popup()
+    const driveUrl = props.Viewer_Link;
+    
+    new mapboxgl.Popup({ className: 'drone-popup' })
         .setLngLat(e.lngLat)
         .setHTML(`
-            <div style="width:300px;">
-                <label style="font-weight:bold; color:#35af6d;">DRONE CAPTURE - ${props.DateTime || ''}</label>
-                <div id="pano-viewer"></div>
+            <div style="font-family: sans-serif;">
+                <label style="font-weight:bold; color:#35af6d; font-size:12px;">DRONE CAPTURE - ${props.DateTime || ''}</label>
+                <iframe src="${driveUrl}" class="drone-frame"></iframe>
+                <a href="${driveUrl}" target="_blank" style="display:block; margin-top:8px; font-size:11px; color:#2c3e50; text-decoration:none; font-weight:bold;">↗ Open Full Google Drive View</a>
             </div>
         `)
         .addTo(map);
-
-    // FIX: Using CORS proxy to bypass Drive load security
-    const panoUrl = "https://corsproxy.io/?" + encodeURIComponent(props.Viewer_Link);
-    
-    pannellum.viewer('pano-viewer', {
-        "type": "equirectangular",
-        "panorama": panoUrl,
-        "autoLoad": true
-    });
   });
 
   function applyDateFilter() {
@@ -209,18 +202,12 @@
       const data = await res.json();
       const imageUrl = data.thumb_2048_url;
       if (imageUrl) {
-        const imageRes = await fetch(imageUrl);
-        const blob = await imageRes.blob();
-        const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url;
+        a.href = imageUrl;
         a.download = `Debris_View_${currentImageKey}.jpg`;
-        document.body.appendChild(a);
         a.click();
-        a.remove();
-        window.URL.revokeObjectURL(url);
       }
-    } catch (err) { alert("Security block. Use browser save."); }
+    } catch (err) { alert("Security block. Use browser 'Save As'."); }
   }
 
   const layerIds = ['mapillary-points', 'debris-layer', 'drone-layer'];
