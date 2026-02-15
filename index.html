@@ -88,10 +88,7 @@
 <script>
   mapboxgl.accessToken = 'pk.eyJ1IjoianZldHRlcnMiLCJhIjoiY21sazFhdDg5MDV3dDNlcTI3aXlwejIwaSJ9.ecEavihruz0TZguVQvRiVg';
   const mlyToken = 'MLY|25724468457195152|d9c0ac6f4fbcd6ede3a3ba4e8332729b';
-  let pnmViewer = null;
-  let currentImageKey = null;
-  let currentDroneUrl = null;
-  let selectedPointId = null;
+  let pnmViewer = null, currentImageKey = null, currentDroneUrl = null, selectedPointId = null;
 
   const map = new mapboxgl.Map({
     container: 'map',
@@ -100,110 +97,91 @@
     center: [-89.522, 34.377]
   });
 
-  const geocoder = new MapboxGeocoder({
-      accessToken: mapboxgl.accessToken,
-      mapboxgl: mapboxgl,
-      placeholder: 'Search Address/LatLong',
-      zoom: 16
-  });
+  const geocoder = new MapboxGeocoder({ accessToken: mapboxgl.accessToken, mapboxgl: mapboxgl, placeholder: 'Search Address/LatLong', zoom: 16 });
   map.addControl(geocoder, 'top-left');
 
   map.on('load', () => {
-    // 1. Mapillary
-    map.addSource('mapillary', {
-      type: 'vector',
-      tiles: [`https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${mlyToken}`],
-      promoteId: 'id'
+    // 1. Load Drone Icon
+    map.loadImage('https://docs.mapbox.com/mapbox-gl-js/assets/custom_marker.png', (error, image) => {
+        if (error) throw error;
+        map.addImage('drone-icon', image);
     });
+
+    // 2. Mapillary
+    map.addSource('mapillary', { type: 'vector', tiles: [`https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${mlyToken}`], promoteId: 'id' });
     map.addLayer({ id: 'mapillary-lines', type: 'line', source: 'mapillary', 'source-layer': 'sequence', paint: { 'line-color': '#35af6d', 'line-width': 1.5, 'line-opacity': 0.6 } });
     map.addLayer({ id: 'mapillary-points', type: 'circle', source: 'mapillary', 'source-layer': 'image', paint: { 'circle-radius': 4, 'circle-color': ['case', ['boolean', ['feature-state', 'selected'], false], '#ff9f43', '#35af6d'], 'circle-stroke-width': ['case', ['boolean', ['feature-state', 'selected'], false], 3, 1], 'circle-stroke-color': '#fff' } });
 
-    // 2. Debris
+    // 3. Debris
     fetch('./MSDOT/Debris_Points.json').then(res => res.json()).then(data => {
-        data.features.forEach(f => { 
-          if (f.properties.Longitude && f.properties.Latitude) {
-            f.geometry = { type: 'Point', coordinates: [parseFloat(f.properties.Longitude), parseFloat(f.properties.Latitude)] };
-          }
-        });
+        data.features.forEach(f => { if (f.properties.Longitude && f.properties.Latitude) f.geometry = { type: 'Point', coordinates: [parseFloat(f.properties.Longitude), parseFloat(f.properties.Latitude)] }; });
         map.addSource('debris-points', { type: 'geojson', data: data });
         map.addLayer({ id: 'debris-layer', type: 'circle', source: 'debris-points', paint: { 'circle-radius': 7, 'circle-color': ['match', ['get', 'Debris Type'], 'Hanger', '#f1c40f', 'Leaner', '#e67e22', 'VEG', '#2ecc71', 'C&D', '#9b59b6', '#e74c3c'] } });
     });
 
-    // 3. Drone
+    // 4. Drone (With Icon)
     map.addSource('drone-360', { type: 'geojson', data: './MSDOT/dronepoints.json' });
-    map.addLayer({ id: 'drone-layer', type: 'circle', source: 'drone-360', paint: { 'circle-radius': 10, 'circle-color': '#00ffff', 'circle-stroke-width': 2, 'circle-stroke-color': '#000' } });
+    map.addLayer({
+        id: 'drone-layer',
+        type: 'symbol', // Switched from circle to symbol
+        source: 'drone-360',
+        layout: {
+            'icon-image': 'drone-icon',
+            'icon-size': 0.08,
+            'icon-allow-overlap': true
+        }
+    });
 
     applyDateFilter();
   });
 
   map.on('click', 'mapillary-points', (e) => {
-    currentImageKey = e.features[0].properties.id;
-    currentDroneUrl = null;
-    document.getElementById('mly-frame').style.display = 'block';
-    document.getElementById('panorama').style.display = 'none';
+    currentImageKey = e.features[0].properties.id; currentDroneUrl = null;
+    document.getElementById('mly-frame').style.display = 'block'; document.getElementById('panorama').style.display = 'none';
     const indicator = document.getElementById('view-indicator');
-    indicator.style.display = 'block';
-    indicator.innerText = 'Current View: Mapillary Road Run';
-    indicator.style.borderColor = '#35af6d';
-
-    if (selectedPointId !== null) map.setFeatureState({ source: 'mapillary', sourceLayer: 'image', id: selectedPointId }, { selected: false });
-    selectedPointId = e.features[0].id;
-    map.setFeatureState({ source: 'mapillary', sourceLayer: 'image', id: selectedPointId }, { selected: true });
+    indicator.style.display = 'block'; indicator.innerText = 'Current View: Mapillary Road Run'; indicator.style.borderColor = '#35af6d';
     
+    if (selectedPointId !== null) map.setFeatureState({ source: 'mapillary', sourceLayer: 'image', id: selectedPointId }, { selected: false });
+    selectedPointId = e.features[0].id; map.setFeatureState({ source: 'mapillary', sourceLayer: 'image', id: selectedPointId }, { selected: true });
     document.getElementById('mly-frame').src = `https://www.mapillary.com/embed?image_key=${currentImageKey}&style=photo&menu=false&publish=true`;
   });
 
   map.on('click', 'drone-layer', (e) => {
-    currentDroneUrl = e.features[0].properties.Viewer_Link;
-    currentImageKey = null;
-    document.getElementById('mly-frame').style.display = 'none';
-    document.getElementById('panorama').style.display = 'block';
+    const props = e.features[0].properties;
+    currentDroneUrl = props.Viewer_Link; currentImageKey = null;
+    
+    document.getElementById('mly-frame').style.display = 'none'; document.getElementById('panorama').style.display = 'block';
+    
+    // RESTORED DATE/TIME DISPLAY
     const indicator = document.getElementById('view-indicator');
     indicator.style.display = 'block';
-    indicator.innerText = 'Current View: Drone 360';
+    indicator.innerText = `Current View: Drone 360 | ${props.DateTime || 'N/A'}`;
     indicator.style.borderColor = '#00ffff';
 
     if (pnmViewer) pnmViewer.destroy();
     pnmViewer = pannellum.viewer('panorama', {
         "type": "equirectangular",
         "panorama": "https://360-proxy.jmvetters.workers.dev/?url=" + encodeURIComponent(currentDroneUrl),
-        "autoLoad": true,
-        "mouseZoom": true,
-        "draggable": true
+        "autoLoad": true, "mouseZoom": true, "draggable": true
     });
   });
 
   async function downloadImage() {
-    let finalUrl = "";
-    let fileName = "MSDOT_Capture.jpg";
-
+    let finalUrl = ""; let fileName = "MSDOT_Capture.jpg";
     if (currentImageKey) {
       const res = await fetch(`https://graph.mapillary.com/${currentImageKey}?fields=thumb_2048_url&access_token=${mlyToken}`);
       const data = await res.json();
-      finalUrl = data.thumb_2048_url;
-      fileName = `RoadRun_${currentImageKey}.jpg`;
+      finalUrl = data.thumb_2048_url; fileName = `RoadRun_${currentImageKey}.jpg`;
     } else if (currentDroneUrl) {
       finalUrl = "https://360-proxy.jmvetters.workers.dev/?url=" + encodeURIComponent(currentDroneUrl);
       fileName = `Drone360_${new Date().getTime()}.jpg`;
-    } else {
-      alert("Please select a point on the map first."); return;
-    }
-
+    } else { alert("Select a point first."); return; }
     try {
-      // Force download via Blob fetch to prevent opening in a new tab
-      const response = await fetch(finalUrl);
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
-    } catch (e) {
-      alert("Download blocked. Please right-click the image to save.");
-    }
+      const response = await fetch(finalUrl); const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob); const link = document.createElement('a');
+      link.href = blobUrl; link.download = fileName; document.body.appendChild(link);
+      link.click(); document.body.removeChild(link); window.URL.revokeObjectURL(blobUrl);
+    } catch (e) { alert("Download blocked."); }
   }
 
   function applyDateFilter() {
@@ -221,9 +199,6 @@
 
   map.on('mouseenter', 'drone-layer', () => map.getCanvas().style.cursor = 'pointer');
   map.on('mouseleave', 'drone-layer', () => map.getCanvas().style.cursor = '');
-  map.on('mouseenter', 'mapillary-points', () => map.getCanvas().style.cursor = 'pointer');
-  map.on('mouseleave', 'mapillary-points', () => map.getCanvas().style.cursor = '');
-
   map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
 </script>
 </body>
