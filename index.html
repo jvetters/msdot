@@ -6,7 +6,6 @@
 <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
 <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
 <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
-
 <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.min.js"></script>
 <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.css" type="text/css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css"/>
@@ -14,42 +13,20 @@
 
 <style>
   body { margin: 0; padding: 0; font-family: 'Helvetica Neue', Arial, sans-serif; background: #f4f4f4; overflow: hidden; }
-  
-  /* Layout */
   #left-pane { position: absolute; top: 0; bottom: 0; left: 0; width: 50%; background: #000; border-right: 2px solid #35af6d; z-index: 5; }
   #map-container { position: absolute; top: 0; bottom: 0; right: 0; width: 50%; }
   #map { width: 100%; height: 100%; }
-  
-  /* Viewer Elements */
   iframe, #panorama { width: 100%; height: 100%; border: none; background: #000; display: block; }
   #panorama { display: none; }
-  
-  /* Control Panel */
-  .controls {
-    position: absolute; top: 15px; right: 15px; z-index: 10;
-    background: white; padding: 12px; border-radius: 8px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 220px;
-    display: flex; flex-direction: column; gap: 8px;
-  }
+  .controls { position: absolute; top: 15px; right: 15px; z-index: 10; background: white; padding: 12px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 210px; display: flex; flex-direction: column; gap: 8px; }
   label { font-size: 10px; font-weight: bold; color: #666; text-transform: uppercase; }
   input, select { padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px; width: 100%; }
   button { padding: 10px; background: #35af6d; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
-  button:hover { background: #2d965d; }
-  
   #download-btn { background: #2c3e50; margin-top: 5px; }
-  
-  /* Legend */
   .legend-container { margin-top: 5px; display: flex; flex-direction: column; gap: 6px; }
   .legend-item { display: flex; align-items: center; font-size: 11px; color: #444; font-weight: bold; }
   .legend-key { width: 14px; height: 14px; border-radius: 50%; margin-right: 10px; border: 1px solid #fff; }
-
-  /* HUD */
-  #view-indicator {
-    position: absolute; bottom: 20px; left: 20px; z-index: 20;
-    background: rgba(0,0,0,0.8); color: white; padding: 8px 15px;
-    border-radius: 20px; font-size: 12px; pointer-events: none;
-    border: 1px solid #35af6d; display: none;
-  }
+  #view-indicator { position: absolute; bottom: 20px; left: 20px; z-index: 20; background: rgba(0,0,0,0.8); color: white; padding: 8px 15px; border-radius: 20px; font-size: 12px; pointer-events: none; border: 1px solid #35af6d; display: none; }
 </style>
 </head>
 <body>
@@ -66,10 +43,8 @@
     <input type="date" id="date-from" value="2026-02-03">
     <input type="date" id="date-to">
     <button onclick="applyDateFilter()">Filter Runs</button>
-    
     <button id="download-btn" onclick="downloadImage()">Download Image</button>
     <hr style="border:0; border-top:1px solid #eee; margin: 4px 0;">
-    
     <label>Debris Filter</label>
     <select id="debris-type-selector" onchange="applyDebrisFilter()">
       <option value="All">All Types</option>
@@ -78,7 +53,6 @@
       <option value="VEG">VEG</option>
       <option value="C&D">C&D</option>
     </select>
-    
     <hr style="border:0; border-top:1px solid #eee; margin: 4px 0;">
     <label>Legend</label>
     <div class="legend-container">
@@ -86,9 +60,8 @@
       <div class="legend-item"><div class="legend-key" style="background: #35af6d;"></div>Road Runs</div>
       <div class="legend-item"><div class="legend-key" style="background: #f1c40f;"></div>Hanger</div>
       <div class="legend-item"><div class="legend-key" style="background: #e67e22;"></div>Leaner</div>
-      <div class="legend-item"><div class="legend-key" style="background: #2ecc71;"></div>VEG</div>
+      <div class="legend-item"><div class="legend-key" style="background: #7b1fa2;"></div>VEG</div>
       <div class="legend-item"><div class="legend-key" style="background: #9b59b6;"></div>C&D</div>
-      <div class="legend-item"><div class="legend-key" style="background: linear-gradient(to right, #8dd3c7, #ffffb3, #bebada); border-radius: 2px;"></div>Counties (Colored)</div>
     </div>
   </div>
   <div id="map"></div>
@@ -110,7 +83,7 @@
   map.addControl(geocoder, 'top-left');
 
   map.on('load', () => {
-    // 1. County Polygons with Color Matching
+    // 1. County Polygons with Coalesce logic for Property Names
     fetch('./MSDOT/Mississippi_Counties.json').then(res => res.json()).then(data => {
         map.addSource('counties', { type: 'geojson', data: data });
         map.addLayer({
@@ -120,15 +93,15 @@
             paint: {
                 'fill-color': [
                     'match', ['coalesce', ['get', 'COUNTY_NAM'], ['get', 'County'], ['get', 'NAME'], ''],
-                    'Lafayette', '#8dd3c7',
-                    'Panola', '#ffffb3',
-                    'Union', '#bebada',
-                    'Pontotoc', '#fb8072',
-                    'Yalobusha', '#80b1d3',
-                    'Marshall', '#fdb462',
+                    'Lafayette', '#FFB3BA',
+                    'Panola', '#BAFFC9',
+                    'Union', '#BAE1FF',
+                    'Pontotoc', '#FFFFBA',
+                    'Yalobusha', '#FFDFBA',
+                    'Marshall', '#E0BBE4',
                     '#d3d3d3'
                 ],
-                'fill-opacity': 0.3
+                'fill-opacity': 0.4
             }
         });
         map.addLayer({ id: 'county-outline', type: 'line', source: 'counties', paint: { 'line-color': '#444', 'line-width': 1 } });
@@ -139,27 +112,23 @@
     map.addLayer({ id: 'mapillary-lines', type: 'line', source: 'mapillary', 'source-layer': 'sequence', paint: { 'line-color': '#35af6d', 'line-width': 1.5, 'line-opacity': 0.6 } });
     map.addLayer({ id: 'mapillary-points', type: 'circle', source: 'mapillary', 'source-layer': 'image', paint: { 'circle-radius': 4, 'circle-color': ['case', ['boolean', ['feature-state', 'selected'], false], '#ff9f43', '#35af6d'], 'circle-stroke-width': ['case', ['boolean', ['feature-state', 'selected'], false], 3, 1], 'circle-stroke-color': '#fff' } });
 
-    // 3. Debris Points
+    // 3. Debris Points (VEG changed to Purple for contrast)
     fetch('./MSDOT/Debris_Points.json').then(res => res.json()).then(data => {
         data.features.forEach(f => { if (f.properties.Longitude && f.properties.Latitude) f.geometry = { type: 'Point', coordinates: [parseFloat(f.properties.Longitude), parseFloat(f.properties.Latitude)] }; });
         map.addSource('debris-points', { type: 'geojson', data: data });
-        map.addLayer({ id: 'debris-layer', type: 'circle', source: 'debris-points', paint: { 'circle-radius': 7, 'circle-color': ['match', ['get', 'Debris Type'], 'Hanger', '#f1c40f', 'Leaner', '#e67e22', 'VEG', '#2ecc71', 'C&D', '#9b59b6', '#e74c3c'] } });
+        map.addLayer({ id: 'debris-layer', type: 'circle', source: 'debris-points', paint: { 'circle-radius': 7, 'circle-color': ['match', ['get', 'Debris Type'], 'Hanger', '#f1c40f', 'Leaner', '#e67e22', 'VEG', '#7b1fa2', 'C&D', '#9b59b6', '#e74c3c'] } });
     });
 
-    // 4. Drone Points (Big Cyan Circles)
+    // 4. Drone Points
     map.addSource('drone-360', { type: 'geojson', data: './MSDOT/dronepoints.json' });
     map.addLayer({ id: 'drone-layer', type: 'circle', source: 'drone-360', paint: { 'circle-radius': 12, 'circle-color': '#00ffff', 'circle-stroke-width': 2, 'circle-stroke-color': '#000' } });
-
-    applyDateFilter();
   });
 
-  // Event Handlers
   map.on('click', 'mapillary-points', (e) => {
     currentImageKey = e.features[0].properties.id; currentDroneUrl = null;
     document.getElementById('mly-frame').style.display = 'block'; document.getElementById('panorama').style.display = 'none';
     const indicator = document.getElementById('view-indicator');
     indicator.style.display = 'block'; indicator.innerText = 'Current View: Road Run'; indicator.style.borderColor = '#35af6d';
-    
     if (selectedPointId !== null) map.setFeatureState({ source: 'mapillary', sourceLayer: 'image', id: selectedPointId }, { selected: false });
     selectedPointId = e.features[0].id; map.setFeatureState({ source: 'mapillary', sourceLayer: 'image', id: selectedPointId }, { selected: true });
     document.getElementById('mly-frame').src = `https://www.mapillary.com/embed?image_key=${currentImageKey}&style=photo&menu=false&publish=true`;
@@ -170,16 +139,10 @@
     currentDroneUrl = props.Viewer_Link; currentImageKey = null;
     document.getElementById('mly-frame').style.display = 'none'; document.getElementById('panorama').style.display = 'block';
     const indicator = document.getElementById('view-indicator');
-    indicator.style.display = 'block'; 
-    indicator.innerText = `Current View: Drone 360 | ${props.DateTime || 'N/A'}`;
+    indicator.style.display = 'block'; indicator.innerText = `Current View: Drone 360 | ${props.DateTime || 'N/A'}`;
     indicator.style.borderColor = '#00ffff';
-
     if (pnmViewer) pnmViewer.destroy();
-    pnmViewer = pannellum.viewer('panorama', {
-        "type": "equirectangular",
-        "panorama": "https://360-proxy.jmvetters.workers.dev/?url=" + encodeURIComponent(currentDroneUrl),
-        "autoLoad": true, "mouseZoom": true, "draggable": true
-    });
+    pnmViewer = pannellum.viewer('panorama', { "type": "equirectangular", "panorama": "https://360-proxy.jmvetters.workers.dev/?url=" + encodeURIComponent(currentDroneUrl), "autoLoad": true, "mouseZoom": true, "draggable": true });
   });
 
   async function downloadImage() {
@@ -190,16 +153,13 @@
       finalUrl = data.thumb_2048_url;
     } else if (currentDroneUrl) {
       finalUrl = "https://360-proxy.jmvetters.workers.dev/?url=" + encodeURIComponent(currentDroneUrl);
-    } else { alert("Select a point on the map first."); return; }
-    
-    try {
-      const response = await fetch(finalUrl);
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = blobUrl; link.download = "MSDOT_Capture.jpg";
-      document.body.appendChild(link); link.click(); document.body.removeChild(link);
-    } catch (e) { alert("Download failed. Try right-clicking."); }
+    } else { alert("Select a point first."); return; }
+    const response = await fetch(finalUrl);
+    const blob = await response.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = blobUrl; link.download = "MSDOT_Capture.jpg";
+    document.body.appendChild(link); link.click(); document.body.removeChild(link);
   }
 
   function applyDateFilter() {
