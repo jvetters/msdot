@@ -1,106 +1,161 @@
-[
-  {
-    "Filename": "DJI_20260207102913_0003_V.JPG",
-    "Latitude": 34.377544472222226,
-    "Longitude": -89.52248192,
-    "DateTime": "2026:02:07 10:29:13",
-    "Drive_ID": "1tnVA0huhRhXHiI-QEeGKWAJumcG0ew1Y",
-    "Viewer_Link": "https://drive.google.com/uc?export=view&id=1tnVA0huhRhXHiI-QEeGKWAJumcG0ew1Y"
-  },
-  {
-    "Filename": "DJI_20260207103109_0005_V.JPG",
-    "Latitude": 34.376468027777776,
-    "Longitude": -89.52366972,
-    "DateTime": "2026:02:07 10:31:09",
-    "Drive_ID": "1m8MhRzpWdLtAtWdI_HKmrtw89BtJ_eds",
-    "Viewer_Link": "https://drive.google.com/uc?export=view&id=1m8MhRzpWdLtAtWdI_HKmrtw89BtJ_eds"
-  },
-  {
-    "Filename": "DJI_20260207103604_0008_V.JPG",
-    "Latitude": 34.374127972222226,
-    "Longitude": -89.53068022,
-    "DateTime": "2026:02:07 10:36:04",
-    "Drive_ID": "16V41BXVtOBb5QgVLNhj5fzhKi-kMv33E",
-    "Viewer_Link": "https://drive.google.com/uc?export=view&id=16V41BXVtOBb5QgVLNhj5fzhKi-kMv33E"
-  },
-  {
-    "Filename": "DJI_20260208111433_0001_V.JPG",
-    "Latitude": 34.287671583333335,
-    "Longitude": -89.52063811,
-    "DateTime": "2026:02:08 11:14:33",
-    "Drive_ID": "185HbPZ1lCw63zOzIQMIVemK0_7eHMzsd",
-    "Viewer_Link": "https://drive.google.com/uc?export=view&id=185HbPZ1lCw63zOzIQMIVemK0_7eHMzsd"
-  },
-  {
-    "Filename": "DJI_20260208112119_0012_V.JPG",
-    "Latitude": 34.27316916666667,
-    "Longitude": -89.52177508,
-    "DateTime": "2026:02:08 11:21:19",
-    "Drive_ID": "1pUqfDXEJwFNFfGAtll78obBtdMujgFWk",
-    "Viewer_Link": "https://drive.google.com/uc?export=view&id=1pUqfDXEJwFNFfGAtll78obBtdMujgFWk"
-  },
-  {
-    "Filename": "DJI_20260208113817_0003_V.JPG",
-    "Latitude": 34.25430219444444,
-    "Longitude": -89.56559603,
-    "DateTime": "2026:02:08 11:38:17",
-    "Drive_ID": "1yne71VmLqtpkkb2YVRG8OEKCKRqbUNSB",
-    "Viewer_Link": "https://drive.google.com/uc?export=view&id=1yne71VmLqtpkkb2YVRG8OEKCKRqbUNSB"
-  },
-  {
-    "Filename": "DJI_20260208114018_0005_V.JPG",
-    "Latitude": 34.25162266666667,
-    "Longitude": -89.56543422,
-    "DateTime": "2026:02:08 11:40:18",
-    "Drive_ID": "1uKL5-i7BvOyplEzuHaVQPcja0mAtdEUy",
-    "Viewer_Link": "https://drive.google.com/uc?export=view&id=1uKL5-i7BvOyplEzuHaVQPcja0mAtdEUy"
-  },
-  {
-    "Filename": "DJI_20260208115153_0001_V.JPG",
-    "Latitude": 34.26145513888889,
-    "Longitude": -89.56814311,
-    "DateTime": "2026:02:08 11:51:53",
-    "Drive_ID": "1pWDxe_oTZXKwFU825hIiObgTTIS_hm6c",
-    "Viewer_Link": "https://drive.google.com/uc?export=view&id=1pWDxe_oTZXKwFU825hIiObgTTIS_hm6c"
-  },
-  {
-    "Filename": "DJI_20260208115741_0006_V.JPG",
-    "Latitude": 34.26495936111111,
-    "Longitude": -89.57138289,
-    "DateTime": "2026:02:08 11:57:41",
-    "Drive_ID": "12eXkDm5zBW30j38rys2IlOYaRsUaioHU",
-    "Viewer_Link": "https://drive.google.com/uc?export=view&id=12eXkDm5zBW30j38rys2IlOYaRsUaioHU"
-  },
-  {
-    "Filename": "DJI_20260208121250_0002_V.JPG",
-    "Latitude": 34.284063277777776,
-    "Longitude": -89.58743908,
-    "DateTime": "2026:02:08 12:12:50",
-    "Drive_ID": "1cw8z__gLyPcVjVQEQbNS-77IHjRtHNOQ",
-    "Viewer_Link": "https://drive.google.com/uc?export=view&id=1cw8z__gLyPcVjVQEQbNS-77IHjRtHNOQ"
-  },
-  {
-    "Filename": "DJI_20260208121943_0001_V.JPG",
-    "Latitude": 34.27248297222222,
-    "Longitude": -89.58777547,
-    "DateTime": "2026:02:08 12:19:43",
-    "Drive_ID": "1QWeo6iRfNgXYs0KOdyKahDJrtNQdLr_8",
-    "Viewer_Link": "https://drive.google.com/uc?export=view&id=1QWeo6iRfNgXYs0KOdyKahDJrtNQdLr_8"
-  },
-  {
-    "Filename": "DJI_20260208122411_0007_V.JPG",
-    "Latitude": 34.274180333333334,
-    "Longitude": -89.58833836,
-    "DateTime": "2026:02:08 12:24:11",
-    "Drive_ID": "14XpV_RKst1KDLP4VM2bWPHEkiP_lng_a",
-    "Viewer_Link": "https://drive.google.com/uc?export=view&id=14XpV_RKst1KDLP4VM2bWPHEkiP_lng_a"
-  },
-  {
-    "Filename": "DJI_20260208123802_0001_V.JPG",
-    "Latitude": 34.336719888888894,
-    "Longitude": -89.55199308,
-    "DateTime": "2026:02:08 12:38:02",
-    "Drive_ID": "1Dfa0OSw71qvdXTHs4GRqID8kX-iADWuS",
-    "Viewer_Link": "https://drive.google.com/uc?export=view&id=1Dfa0OSw71qvdXTHs4GRqID8kX-iADWuS"
-  }
-]
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "Filename": "DJI_20260207102913_0003_V.JPG",
+        "DateTime": "2026:02:07 10:29:13",
+        "Viewer_Link": "https://drive.google.com/uc?export=view&id=1tnVA0huhRhXHiI-QEeGKWAJumcG0ew1Y"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-89.52248192, 34.37754447]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "Filename": "DJI_20260207103109_0005_V.JPG",
+        "DateTime": "2026:02:07 10:31:09",
+        "Viewer_Link": "https://drive.google.com/uc?export=view&id=1m8MhRzpWdLtAtWdI_HKmrtw89BtJ_eds"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-89.52366972, 34.37646803]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "Filename": "DJI_20260207103604_0008_V.JPG",
+        "DateTime": "2026:02:07 10:36:04",
+        "Viewer_Link": "https://drive.google.com/uc?export=view&id=16V41BXVtOBb5QgVLNhj5fzhKi-kMv33E"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-89.53068022, 34.37412797]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "Filename": "DJI_20260208111433_0001_V.JPG",
+        "DateTime": "2026:02:08 11:14:33",
+        "Viewer_Link": "https://drive.google.com/uc?export=view&id=185HbPZ1lCw63zOzIQMIVemK0_7eHMzsd"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-89.52063811, 34.28767158]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "Filename": "DJI_20260208112119_0012_V.JPG",
+        "DateTime": "2026:02:08 11:21:19",
+        "Viewer_Link": "https://drive.google.com/uc?export=view&id=1pUqfDXEJwFNFfGAtll78obBtdMujgFWk"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-89.52177508, 34.27316917]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "Filename": "DJI_20260208113817_0003_V.JPG",
+        "DateTime": "2026:02:08 11:38:17",
+        "Viewer_Link": "https://drive.google.com/uc?export=view&id=1yne71VmLqtpkkb2YVRG8OEKCKRqbUNSB"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-89.56559603, 34.25430219]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "Filename": "DJI_20260208114018_0005_V.JPG",
+        "DateTime": "2026:02:08 11:40:18",
+        "Viewer_Link": "https://drive.google.com/uc?export=view&id=1uKL5-i7BvOyplEzuHaVQPcja0mAtdEUy"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-89.56543422, 34.25162267]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "Filename": "DJI_20260208115153_0001_V.JPG",
+        "DateTime": "2026:02:08 11:51:53",
+        "Viewer_Link": "https://drive.google.com/uc?export=view&id=1pWDxe_oTZXKwFU825hIiObgTTIS_hm6c"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-89.56814311, 34.26145514]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "Filename": "DJI_20260208115741_0006_V.JPG",
+        "DateTime": "2026:02:08 11:57:41",
+        "Viewer_Link": "https://drive.google.com/uc?export=view&id=12eXkDm5zBW30j38rys2IlOYaRsUaioHU"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-89.57138289, 34.26495936]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "Filename": "DJI_20260208121250_0002_V.JPG",
+        "DateTime": "2026:02:08 12:12:50",
+        "Viewer_Link": "https://drive.google.com/uc?export=view&id=1cw8z__gLyPcVjVQEQbNS-77IHjRtHNOQ"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-89.58743908, 34.28406328]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "Filename": "DJI_20260208121943_0001_V.JPG",
+        "DateTime": "2026:02:08 12:19:43",
+        "Viewer_Link": "https://drive.google.com/uc?export=view&id=1QWeo6iRfNgXYs0KOdyKahDJrtNQdLr_8"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-89.58777547, 34.27248297]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "Filename": "DJI_20260208122411_0007_V.JPG",
+        "DateTime": "2026:02:08 12:24:11",
+        "Viewer_Link": "https://drive.google.com/uc?export=view&id=14XpV_RKst1KDLP4VM2bWPHEkiP_lng_a"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-89.58833836, 34.27418033]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "Filename": "DJI_20260208123802_0001_V.JPG",
+        "DateTime": "2026:02:08 12:38:02",
+        "Viewer_Link": "https://drive.google.com/uc?export=view&id=1Dfa0OSw71qvdXTHs4GRqID8kX-iADWuS"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-89.55199308, 34.33671989]
+      }
+    }
+  ]
+}
