@@ -9,23 +9,17 @@
 
 <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.min.js"></script>
 <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.css" type="text/css">
-
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css"/>
 <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
 
 <style>
   body { margin: 0; padding: 0; font-family: 'Helvetica Neue', Arial, sans-serif; background: #f4f4f4; overflow: hidden; }
-  
-  /* Layout Panes */
   #left-pane { position: absolute; top: 0; bottom: 0; left: 0; width: 50%; background: #000; border-right: 2px solid #35af6d; z-index: 5; }
   #map-container { position: absolute; top: 0; bottom: 0; right: 0; width: 50%; }
   #map { width: 100%; height: 100%; }
-  
-  /* Viewer Styles */
   iframe, #panorama { width: 100%; height: 100%; border: none; background: #000; display: block; }
   #panorama { display: none; }
-
-  /* Control Panel */
+  
   .controls {
     position: absolute; top: 15px; right: 15px; z-index: 10;
     background: white; padding: 12px; border-radius: 8px;
@@ -38,15 +32,11 @@
   button:hover { background: #2d965d; }
   
   #download-btn { background: #2c3e50; margin-top: 5px; }
-  .zoom-controls { display: flex; gap: 5px; margin-top: 5px; }
-  .zoom-btn { flex: 1; background: #34495e; padding: 8px; font-size: 14px; }
-
-  /* Legend */
+  
   .legend-container { margin-top: 5px; display: flex; flex-direction: column; gap: 4px; }
   .legend-item { display: flex; align-items: center; font-size: 11px; color: #444; font-weight: bold; }
   .legend-key { width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; border: 1px solid #fff; }
 
-  /* View Overlay */
   #view-indicator {
     position: absolute; bottom: 20px; left: 20px; z-index: 20;
     background: rgba(0,0,0,0.8); color: white; padding: 8px 15px;
@@ -70,12 +60,7 @@
     <input type="date" id="date-to">
     <button onclick="applyDateFilter()">Filter Runs</button>
     
-    <div class="zoom-controls">
-      <button class="zoom-btn" onclick="zoomMapillary(0.2)">+</button>
-      <button class="zoom-btn" onclick="zoomMapillary(-0.2)">-</button>
-    </div>
-    
-    <button id="download-btn" onclick="downloadImage()">Download Selection</button>
+    <button id="download-btn" onclick="downloadImage()">Download Image</button>
     <hr style="border:0; border-top:1px solid #eee; margin: 4px 0;">
     
     <label>Debris Filter</label>
@@ -105,15 +90,14 @@
   const mlyToken = 'MLY|25724468457195152|d9c0ac6f4fbcd6ede3a3ba4e8332729b';
   let pnmViewer = null;
   let currentImageKey = null;
-  let currentZoom = 1.0;
+  let currentDroneUrl = null;
   let selectedPointId = null;
 
   const map = new mapboxgl.Map({
     container: 'map',
     style: 'mapbox://styles/mapbox/light-v11',
     zoom: 12,
-    center: [-89.522, 34.377],
-    maxZoom: 22
+    center: [-89.522, 34.377]
   });
 
   const geocoder = new MapboxGeocoder({
@@ -125,16 +109,16 @@
   map.addControl(geocoder, 'top-left');
 
   map.on('load', () => {
-    // 1. Mapillary Vector Tile Source
+    // 1. Mapillary
     map.addSource('mapillary', {
       type: 'vector',
       tiles: [`https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${mlyToken}`],
-      minzoom: 0, maxzoom: 24, promoteId: 'id'
+      promoteId: 'id'
     });
     map.addLayer({ id: 'mapillary-lines', type: 'line', source: 'mapillary', 'source-layer': 'sequence', paint: { 'line-color': '#35af6d', 'line-width': 1.5, 'line-opacity': 0.6 } });
-    map.addLayer({ id: 'mapillary-points', type: 'circle', source: 'mapillary', 'source-layer': 'image', paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 1, 10, 2.5, 14, 6, 22, 18], 'circle-color': ['case', ['boolean', ['feature-state', 'selected'], false], '#ff9f43', '#35af6d'], 'circle-stroke-width': ['case', ['boolean', ['feature-state', 'selected'], false], 3, 1], 'circle-stroke-color': '#fff' } });
+    map.addLayer({ id: 'mapillary-points', type: 'circle', source: 'mapillary', 'source-layer': 'image', paint: { 'circle-radius': 4, 'circle-color': ['case', ['boolean', ['feature-state', 'selected'], false], '#ff9f43', '#35af6d'], 'circle-stroke-width': ['case', ['boolean', ['feature-state', 'selected'], false], 3, 1], 'circle-stroke-color': '#fff' } });
 
-    // 2. Debris Points (MSDOT Folder)
+    // 2. Debris
     fetch('./MSDOT/Debris_Points.json').then(res => res.json()).then(data => {
         data.features.forEach(f => { 
           if (f.properties.Longitude && f.properties.Latitude) {
@@ -142,19 +126,19 @@
           }
         });
         map.addSource('debris-points', { type: 'geojson', data: data });
-        map.addLayer({ id: 'debris-layer', type: 'circle', source: 'debris-points', paint: { 'circle-radius': 7, 'circle-stroke-width': 2, 'circle-stroke-color': '#fff', 'circle-color': ['match', ['get', 'Debris Type'], 'Hanger', '#f1c40f', 'Leaner', '#e67e22', 'VEG', '#2ecc71', 'C&D', '#9b59b6', '#e74c3c'] } });
+        map.addLayer({ id: 'debris-layer', type: 'circle', source: 'debris-points', paint: { 'circle-radius': 7, 'circle-color': ['match', ['get', 'Debris Type'], 'Hanger', '#f1c40f', 'Leaner', '#e67e22', 'VEG', '#2ecc71', 'C&D', '#9b59b6', '#e74c3c'] } });
     });
 
-    // 3. Drone 360 Points (Cloudflare Integrated)
+    // 3. Drone
     map.addSource('drone-360', { type: 'geojson', data: './MSDOT/dronepoints.json' });
     map.addLayer({ id: 'drone-layer', type: 'circle', source: 'drone-360', paint: { 'circle-radius': 10, 'circle-color': '#00ffff', 'circle-stroke-width': 2, 'circle-stroke-color': '#000' } });
 
     applyDateFilter();
   });
 
-  // HANDLERS
   map.on('click', 'mapillary-points', (e) => {
     currentImageKey = e.features[0].properties.id;
+    currentDroneUrl = null;
     document.getElementById('mly-frame').style.display = 'block';
     document.getElementById('panorama').style.display = 'none';
     const indicator = document.getElementById('view-indicator');
@@ -170,36 +154,56 @@
   });
 
   map.on('click', 'drone-layer', (e) => {
-    const photoUrl = e.features[0].properties.Viewer_Link;
+    currentDroneUrl = e.features[0].properties.Viewer_Link;
+    currentImageKey = null;
     document.getElementById('mly-frame').style.display = 'none';
     document.getElementById('panorama').style.display = 'block';
     const indicator = document.getElementById('view-indicator');
     indicator.style.display = 'block';
-    indicator.innerText = `Current View: Drone 360 - ${e.features[0].properties.DateTime || 'Capture'}`;
+    indicator.innerText = 'Current View: Drone 360';
     indicator.style.borderColor = '#00ffff';
 
     if (pnmViewer) pnmViewer.destroy();
-    
-    // Pannellum Logic with Cloudflare Worker Bridge
     pnmViewer = pannellum.viewer('panorama', {
         "type": "equirectangular",
-        "panorama": "https://360-proxy.jmvetters.workers.dev/?url=" + encodeURIComponent(photoUrl),
+        "panorama": "https://360-proxy.jmvetters.workers.dev/?url=" + encodeURIComponent(currentDroneUrl),
         "autoLoad": true,
         "mouseZoom": true,
-        "draggable": true,
-        "showZoomCtrl": true
+        "draggable": true
     });
   });
 
-  map.on('click', 'debris-layer', (e) => {
-    const props = e.features[0].properties;
-    new mapboxgl.Popup().setLngLat(e.lngLat).setHTML(`<strong>Type:</strong> ${props['Debris Type']}<br>Lat: ${props.Latitude}`).addTo(map);
-  });
+  async function downloadImage() {
+    let finalUrl = "";
+    let fileName = "MSDOT_Capture.jpg";
 
-  // FUNCTIONS
-  function zoomMapillary(delta) {
-    currentZoom = Math.min(Math.max(currentZoom + delta, 0.5), 3.0);
-    document.getElementById('mly-frame').contentWindow.postMessage(JSON.stringify({type: 'mly.zoom', value: currentZoom}), 'https://www.mapillary.com');
+    if (currentImageKey) {
+      const res = await fetch(`https://graph.mapillary.com/${currentImageKey}?fields=thumb_2048_url&access_token=${mlyToken}`);
+      const data = await res.json();
+      finalUrl = data.thumb_2048_url;
+      fileName = `RoadRun_${currentImageKey}.jpg`;
+    } else if (currentDroneUrl) {
+      finalUrl = "https://360-proxy.jmvetters.workers.dev/?url=" + encodeURIComponent(currentDroneUrl);
+      fileName = `Drone360_${new Date().getTime()}.jpg`;
+    } else {
+      alert("Please select a point on the map first."); return;
+    }
+
+    try {
+      // Force download via Blob fetch to prevent opening in a new tab
+      const response = await fetch(finalUrl);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (e) {
+      alert("Download blocked. Please right-click the image to save.");
+    }
   }
 
   function applyDateFilter() {
@@ -215,24 +219,10 @@
     map.setFilter('debris-layer', val === 'All' ? null : ['==', ['get', 'Debris Type'], val]);
   }
 
-  async function downloadImage() {
-    if (!currentImageKey) { alert("Select a road run point (Green) first."); return; }
-    try {
-      const res = await fetch(`https://graph.mapillary.com/${currentImageKey}?fields=thumb_2048_url&access_token=${mlyToken}`);
-      const data = await res.json();
-      const a = document.createElement('a');
-      a.href = data.thumb_2048_url;
-      a.download = `Inspection_View_${currentImageKey}.jpg`;
-      a.click();
-    } catch (err) { alert("Use browser right-click save."); }
-  }
-
-  // Cursors
-  const layers = ['mapillary-points', 'debris-layer', 'drone-layer'];
-  layers.forEach(lyr => {
-    map.on('mouseenter', lyr, () => map.getCanvas().style.cursor = 'pointer');
-    map.on('mouseleave', lyr, () => map.getCanvas().style.cursor = '');
-  });
+  map.on('mouseenter', 'drone-layer', () => map.getCanvas().style.cursor = 'pointer');
+  map.on('mouseleave', 'drone-layer', () => map.getCanvas().style.cursor = '');
+  map.on('mouseenter', 'mapillary-points', () => map.getCanvas().style.cursor = 'pointer');
+  map.on('mouseleave', 'mapillary-points', () => map.getCanvas().style.cursor = '');
 
   map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
 </script>
