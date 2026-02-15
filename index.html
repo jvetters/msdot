@@ -15,7 +15,6 @@
   #mly-container { position: absolute; top: 0; bottom: 0; left: 0; width: 50%; background: #000; border-right: 2px solid #35af6d; }
   #map-container { position: absolute; top: 0; bottom: 0; right: 0; width: 50%; }
   #map { width: 100%; height: 100%; }
-  /* Ensures the interactive frame takes up the whole space */
   iframe { width: 100%; height: 100%; border: none; background: #000; display: block; }
 
   .controls {
@@ -81,6 +80,7 @@
       <div class="legend-item"><div class="legend-key" style="background: #e67e22;"></div>Leaner</div>
       <div class="legend-item"><div class="legend-key" style="background: #2ecc71;"></div>VEG</div>
       <div class="legend-item"><div class="legend-key" style="background: #9b59b6;"></div>C&D</div>
+      <div class="legend-item"><div class="legend-key" style="background: #e74c3c;"></div>Unknown</div>
     </div>
   </div>
   <div id="map"></div>
@@ -111,7 +111,7 @@
   map.addControl(geocoder, 'top-left');
 
   map.on('load', () => {
-    // 1. Mapillary
+    // 1. Mapillary Setup
     map.addSource('mapillary', {
       type: 'vector',
       tiles: [`https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${mlyToken}`],
@@ -120,14 +120,14 @@
     map.addLayer({ id: 'mapillary-lines', type: 'line', source: 'mapillary', 'source-layer': 'sequence', paint: { 'line-color': '#35af6d', 'line-width': 1.5, 'line-opacity': 0.6 } });
     map.addLayer({ id: 'mapillary-points', type: 'circle', source: 'mapillary', 'source-layer': 'image', paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 1, 10, 2.5, 14, 6, 22, 18], 'circle-color': ['case', ['boolean', ['feature-state', 'selected'], false], '#ff9f43', '#35af6d'], 'circle-stroke-width': ['case', ['boolean', ['feature-state', 'selected'], false], 3, 1], 'circle-stroke-color': '#fff' } });
 
-    // 2. Debris
+    // 2. Debris Setup (MSDOT Folder)
     fetch('./MSDOT/Debris_Points.json').then(res => res.json()).then(pointData => {
         pointData.features.forEach(f => { if (f.properties.Longitude && f.properties.Latitude) f.geometry = { type: 'Point', coordinates: [parseFloat(f.properties.Longitude), parseFloat(f.properties.Latitude)] }; });
         map.addSource('debris-points', { type: 'geojson', data: pointData });
         map.addLayer({ id: 'debris-layer', type: 'circle', source: 'debris-points', paint: { 'circle-radius': 7, 'circle-stroke-width': 2, 'circle-stroke-color': '#fff', 'circle-color': ['match', ['get', 'Debris Type'], 'Hanger', '#f1c40f', 'Leaner', '#e67e22', 'VEG', '#2ecc71', 'C&D', '#9b59b6', '#e74c3c'] } });
     });
 
-    // 3. Drone 360
+    // 3. Drone 360 Setup (MSDOT Folder)
     map.addSource('drone-360', {
         type: 'geojson',
         data: './MSDOT/dronepoints.json'
@@ -172,10 +172,12 @@
     new mapboxgl.Popup().setLngLat(e.lngLat).setHTML(`<strong>Debris:</strong> ${props['Debris Type']}`).addTo(map);
   });
 
-  // UPDATED DRONE LOGIC: Converts the ID to a full-screen interactive preview link
+  // UPDATED DRONE LOGIC: Uses interactive preview for mouse-panning and scroll-zoom
   map.on('click', 'drone-layer', (e) => {
     const props = e.features[0].properties;
-    const driveId = props.Drive_ID; // We use the ID directly for the best viewer
+    
+    // Extraction of Drive ID from our GeoJSON properties
+    const driveId = props.Drive_ID; 
     
     document.getElementById('view-indicator').style.display = 'block';
     document.getElementById('view-indicator').innerText = `Current View: Drone 360 (${props.DateTime || 'N/A'})`;
@@ -186,7 +188,7 @@
         selectedPointId = null;
     }
 
-    // THE INTERACTIVE VIEWER LINK 
+    // THE INTERACTIVE VIEWER LINK: native panning enabled
     const interactiveUrl = `https://drive.google.com/file/d/${driveId}/preview`;
     document.getElementById('mly-frame').src = interactiveUrl;
   });
