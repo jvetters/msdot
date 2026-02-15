@@ -23,7 +23,7 @@
   .controls {
     position: absolute; top: 15px; right: 15px; z-index: 10;
     background: white; padding: 12px; border-radius: 8px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 190px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 195px;
     display: flex; flex-direction: column; gap: 8px;
   }
   label { font-size: 10px; font-weight: bold; color: #666; text-transform: uppercase; }
@@ -101,33 +101,48 @@
   map.addControl(geocoder, 'top-left');
 
   map.on('load', () => {
-    // 1. Load Drone Icon
+    // 1. Load LARGE Drone Icon
     map.loadImage('https://docs.mapbox.com/mapbox-gl-js/assets/custom_marker.png', (error, image) => {
         if (error) throw error;
         map.addImage('drone-icon', image);
     });
 
-    // 2. Mapillary
+    // 2. RESTORED COUNTY POLYGONS (Bottom Layer)
+    fetch('./MSDOT/counties.json').then(res => res.json()).then(data => {
+        map.addSource('counties', { type: 'geojson', data: data });
+        map.addLayer({
+            id: 'county-layer',
+            type: 'fill',
+            source: 'counties',
+            paint: {
+                'fill-color': '#000',
+                'fill-opacity': 0.05,
+                'fill-outline-color': '#35af6d'
+            }
+        }, 'mapillary-lines'); // Ensure it stays below lines
+    });
+
+    // 3. Mapillary
     map.addSource('mapillary', { type: 'vector', tiles: [`https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${mlyToken}`], promoteId: 'id' });
     map.addLayer({ id: 'mapillary-lines', type: 'line', source: 'mapillary', 'source-layer': 'sequence', paint: { 'line-color': '#35af6d', 'line-width': 1.5, 'line-opacity': 0.6 } });
     map.addLayer({ id: 'mapillary-points', type: 'circle', source: 'mapillary', 'source-layer': 'image', paint: { 'circle-radius': 4, 'circle-color': ['case', ['boolean', ['feature-state', 'selected'], false], '#ff9f43', '#35af6d'], 'circle-stroke-width': ['case', ['boolean', ['feature-state', 'selected'], false], 3, 1], 'circle-stroke-color': '#fff' } });
 
-    // 3. Debris
+    // 4. Debris
     fetch('./MSDOT/Debris_Points.json').then(res => res.json()).then(data => {
         data.features.forEach(f => { if (f.properties.Longitude && f.properties.Latitude) f.geometry = { type: 'Point', coordinates: [parseFloat(f.properties.Longitude), parseFloat(f.properties.Latitude)] }; });
         map.addSource('debris-points', { type: 'geojson', data: data });
         map.addLayer({ id: 'debris-layer', type: 'circle', source: 'debris-points', paint: { 'circle-radius': 7, 'circle-color': ['match', ['get', 'Debris Type'], 'Hanger', '#f1c40f', 'Leaner', '#e67e22', 'VEG', '#2ecc71', 'C&D', '#9b59b6', '#e74c3c'] } });
     });
 
-    // 4. Drone (With Icon)
+    // 5. Drone (WITH MUCH LARGER ICON)
     map.addSource('drone-360', { type: 'geojson', data: './MSDOT/dronepoints.json' });
     map.addLayer({
         id: 'drone-layer',
-        type: 'symbol', // Switched from circle to symbol
+        type: 'symbol',
         source: 'drone-360',
         layout: {
             'icon-image': 'drone-icon',
-            'icon-size': 0.08,
+            'icon-size': 0.25, // INCREASED FROM 0.08
             'icon-allow-overlap': true
         }
     });
@@ -139,7 +154,7 @@
     currentImageKey = e.features[0].properties.id; currentDroneUrl = null;
     document.getElementById('mly-frame').style.display = 'block'; document.getElementById('panorama').style.display = 'none';
     const indicator = document.getElementById('view-indicator');
-    indicator.style.display = 'block'; indicator.innerText = 'Current View: Mapillary Road Run'; indicator.style.borderColor = '#35af6d';
+    indicator.style.display = 'block'; indicator.innerText = 'Current View: Road Run'; indicator.style.borderColor = '#35af6d';
     
     if (selectedPointId !== null) map.setFeatureState({ source: 'mapillary', sourceLayer: 'image', id: selectedPointId }, { selected: false });
     selectedPointId = e.features[0].id; map.setFeatureState({ source: 'mapillary', sourceLayer: 'image', id: selectedPointId }, { selected: true });
@@ -152,7 +167,6 @@
     
     document.getElementById('mly-frame').style.display = 'none'; document.getElementById('panorama').style.display = 'block';
     
-    // RESTORED DATE/TIME DISPLAY
     const indicator = document.getElementById('view-indicator');
     indicator.style.display = 'block';
     indicator.innerText = `Current View: Drone 360 | ${props.DateTime || 'N/A'}`;
