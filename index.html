@@ -21,7 +21,7 @@
   iframe, #panorama { width: 100%; height: 100%; border: none; background: #000; display: block; }
   #panorama { display: none; }
 
-  /* Expanded Search Bar Width */
+  /* Wider Search bar to fit "Search Address or Lat,Long" */
   .mapboxgl-ctrl-geocoder { min-width: 280px !important; }
 
   .controls {
@@ -46,7 +46,7 @@
     border: 1px solid #35af6d; display: none; line-height: 1.4;
   }
 
-  /* Home Button Styling */
+  /* Home Button Icon */
   .mapboxgl-ctrl-home {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'%3E%3C/path%3E%3Cpolyline points='9 22 9 12 15 12 15 22'%3E%3C/polyline%3E%3C/svg%3E");
     background-repeat: no-repeat;
@@ -98,8 +98,8 @@
   const mlyToken = 'MLY|25724468457195152|d9c0ac6f4fbcd6ede3a3ba4e8332729b';
   let pnmViewer = null, currentImageKey = null, currentDroneUrl = null, selectedPointId = null;
 
-  // REFINED NUDGE: -90.5 longitude pushes the map left to clear UI. Zoom back to 6.
-  const homePosition = { center: [-90.5, 32.35], zoom: 6.0 };
+  // RESTORED PERFECT POSITION: Center zoomed into North-ish MS
+  const homePosition = { center: [-89.522, 34.377], zoom: 12 };
 
   const map = new mapboxgl.Map({
     container: 'map',
@@ -117,7 +117,7 @@
   });
   map.addControl(geocoder, 'top-left');
 
-  // Home Button Class
+  // Home Button Implementation
   class HomeControl {
     onAdd(map) {
       this._map = map;
