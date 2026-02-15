@@ -57,9 +57,10 @@
     <button onclick="applyDateFilter()">Filter Road Runs</button>
     <button onclick="downloadImage()" id="download-btn" style="background: #2c3e50; margin-top: 5px;">Download Image</button>
     <hr style="border:0; border-top:1px solid #eee; margin: 4px 0;">
-    <label>Debris Type Filter</label>
+    <label>Type Filter</label>
     <select id="debris-type-selector" onchange="applyDebrisFilter()">
       <option value="All">All Types</option>
+      <option value="Drone 360">Drone 360</option>
       <option value="Hanger">Hanger</option>
       <option value="Leaner">Leaner</option>
       <option value="VEG">VEG</option>
@@ -108,9 +109,7 @@
       minzoom: 0,
       maxzoom: 24
     });
-
     map.addLayer({ id: 'mapillary-lines', type: 'line', source: 'mapillary', 'source-layer': 'sequence', paint: { 'line-color': '#35af6d', 'line-width': 1.5, 'line-opacity': 0.6 } });
-
     map.addLayer({
       id: 'mapillary-points',
       type: 'circle',
@@ -118,25 +117,15 @@
       'source-layer': 'image',
       paint: { 
         'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 1, 10, 2.5, 14, 6, 22, 18],
-        'circle-color': '#35af6d', 
-        'circle-stroke-width': 1, 
-        'circle-stroke-color': '#fff'
+        'circle-color': '#35af6d', 'circle-stroke-width': 1, 'circle-stroke-color': '#fff'
       }
     });
 
-    // 2. MSDOT Counties (Original Coloring Logic)
-    fetch('./MSDOT/Mississippi_Counties.json')
-      .then(res => res.json())
-      .then(data => {
+    // 2. Counties
+    fetch('./MSDOT/Mississippi_Counties.json').then(res => res.json()).then(data => {
         data.features.forEach(f => f.properties.dynamicColor = stringToColour(f.properties.Name || "default"));
         map.addSource('counties', { type: 'geojson', data: data });
-        map.addLayer({
-          id: 'county-fills',
-          type: 'fill',
-          source: 'counties',
-          paint: { 'fill-color': ['get', 'dynamicColor'], 'fill-opacity': 0.15, 'fill-outline-color': '#000' }
-        }, 'mapillary-lines');
-
+        map.addLayer({ id: 'county-fills', type: 'fill', source: 'counties', paint: { 'fill-color': ['get', 'dynamicColor'], 'fill-opacity': 0.15, 'fill-outline-color': '#000' } }, 'mapillary-lines');
         const bounds = new mapboxgl.LngLatBounds();
         data.features.forEach(f => {
           if (f.geometry && f.geometry.coordinates) {
@@ -145,33 +134,22 @@
           }
         });
         map.fitBounds(bounds, { padding: 40 });
-      });
+    });
 
-    // 3. Debris Points (VEG = Dark Blue)
-    fetch('./MSDOT/Debris_Points.json')
-      .then(res => res.json())
-      .then(pointData => {
-        pointData.features.forEach(f => {
-          if (f.properties.Longitude && f.properties.Latitude) {
-            f.geometry = { type: 'Point', coordinates: [parseFloat(f.properties.Longitude), parseFloat(f.properties.Latitude)] };
-          }
-        });
+    // 3. Debris Points
+    fetch('./MSDOT/Debris_Points.json').then(res => res.json()).then(pointData => {
+        pointData.features.forEach(f => { if (f.properties.Longitude && f.properties.Latitude) f.geometry = { type: 'Point', coordinates: [parseFloat(f.properties.Longitude), parseFloat(f.properties.Latitude)] }; });
         map.addSource('debris-points', { type: 'geojson', data: pointData });
         map.addLayer({
           id: 'debris-layer',
           type: 'circle',
           source: 'debris-points',
           paint: {
-            'circle-radius': 7,
-            'circle-stroke-width': 2,
-            'circle-stroke-color': '#fff',
-            'circle-color': [
-              'match', ['get', 'Debris Type'],
-              'Hanger', '#f1c40f', 'Leaner', '#e67e22', 'VEG', '#003366', 'C&D', '#9b59b6', '#e74c3c'
-            ]
+            'circle-radius': 7, 'circle-stroke-width': 2, 'circle-stroke-color': '#fff',
+            'circle-color': ['match', ['get', 'Debris Type'], 'Hanger', '#f1c40f', 'Leaner', '#e67e22', 'VEG', '#003366', 'C&D', '#9b59b6', '#e74c3c']
           }
         });
-      });
+    });
 
     // 4. Drone Points
     map.addSource('drone-360', { type: 'geojson', data: './MSDOT/dronepoints.json' });
@@ -180,7 +158,6 @@
     applyDateFilter();
   });
 
-  // HANDLERS
   function applyDateFilter() {
     const fromTs = document.getElementById('date-from').value ? new Date(document.getElementById('date-from').value).getTime() : 0;
     const toTs = document.getElementById('date-to').value ? new Date(document.getElementById('date-to').value).getTime() : Date.now();
@@ -191,49 +168,51 @@
 
   function applyDebrisFilter() {
     const selectedType = document.getElementById('debris-type-selector').value;
-    map.setFilter('debris-layer', selectedType === 'All' ? null : ['==', ['get', 'Debris Type'], selectedType]);
+    if (selectedType === 'All') {
+        map.setFilter('debris-layer', null);
+        map.setFilter('drone-layer', null);
+    } else if (selectedType === 'Drone 360') {
+        map.setFilter('debris-layer', ['==', 'true', 'false']); // Hide all debris
+        map.setFilter('drone-layer', null); // Show drones
+    } else {
+        map.setFilter('debris-layer', ['==', ['get', 'Debris Type'], selectedType]);
+        map.setFilter('drone-layer', ['==', 'true', 'false']); // Hide drones
+    }
   }
 
   map.on('click', 'mapillary-points', (e) => {
     currentImageKey = e.features[0].properties.id; currentDroneUrl = null;
-    document.getElementById('mly-frame').style.display = 'block';
-    document.getElementById('panorama').style.display = 'none';
-    document.getElementById('view-indicator').style.display = 'block';
-    document.getElementById('view-indicator').innerText = 'Current View: Road Run';
+    document.getElementById('mly-frame').style.display = 'block'; document.getElementById('panorama').style.display = 'none';
+    document.getElementById('view-indicator').style.display = 'block'; document.getElementById('view-indicator').innerText = 'Current View: Road Run';
     document.getElementById('mly-frame').src = `https://www.mapillary.com/embed?image_key=${currentImageKey}&style=photo&menu=false`;
   });
 
   map.on('click', 'drone-layer', (e) => {
     const props = e.features[0].properties;
     currentDroneUrl = props.Viewer_Link; currentImageKey = null;
-    document.getElementById('mly-frame').style.display = 'none';
-    document.getElementById('panorama').style.display = 'block';
-    document.getElementById('view-indicator').style.display = 'block';
-    document.getElementById('view-indicator').innerText = `Current View: Drone 360 | ${props.DateTime || 'N/A'}`;
-
+    document.getElementById('mly-frame').style.display = 'none'; document.getElementById('panorama').style.display = 'block';
+    document.getElementById('view-indicator').style.display = 'block'; document.getElementById('view-indicator').innerText = `Current View: Drone 360 | ${props.DateTime || 'N/A'}`;
     if (pnmViewer) pnmViewer.destroy();
-    pnmViewer = pannellum.viewer('panorama', {
-        "type": "equirectangular",
-        "panorama": "https://360-proxy.jmvetters.workers.dev/?url=" + encodeURIComponent(currentDroneUrl),
-        "autoLoad": true, "mouseZoom": true, "draggable": true
-    });
+    pnmViewer = pannellum.viewer('panorama', { "type": "equirectangular", "panorama": "https://360-proxy.jmvetters.workers.dev/?url=" + encodeURIComponent(currentDroneUrl), "autoLoad": true, "mouseZoom": true, "draggable": true });
   });
 
   async function downloadImage() {
     let finalUrl = "";
+    let fileName = "Capture.jpg";
     if (currentImageKey) {
       const res = await fetch(`https://graph.mapillary.com/${currentImageKey}?fields=thumb_2048_url&access_token=${mlyToken}`);
       const data = await res.json();
       finalUrl = data.thumb_2048_url;
+      fileName = `RoadRun_${currentImageKey}.jpg`;
     } else if (currentDroneUrl) {
       finalUrl = "https://360-proxy.jmvetters.workers.dev/?url=" + encodeURIComponent(currentDroneUrl);
+      fileName = `Drone360_${new Date().getTime()}.jpg`;
     } else { alert("Select a point first."); return; }
-
     const response = await fetch(finalUrl);
     const blob = await response.blob();
     const blobUrl = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.href = blobUrl; link.download = "MSDOT_Capture.jpg";
+    link.href = blobUrl; link.download = fileName;
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
   }
 
@@ -241,7 +220,6 @@
   map.on('mouseleave', 'mapillary-points', () => { map.getCanvas().style.cursor = ''; });
   map.on('mouseenter', 'drone-layer', () => { map.getCanvas().style.cursor = 'pointer'; });
   map.on('mouseleave', 'drone-layer', () => { map.getCanvas().style.cursor = ''; });
-  
   map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
 </script>
 </body>
